@@ -1,0 +1,21 @@
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+*.log
+
+# Java / Spring Boot Backend
+target/
+.mvn/
+*.jar
+*.war
+
+# Environment & Config
+.env
+.env.local
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

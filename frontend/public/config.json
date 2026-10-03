@@ -1,0 +1,9 @@
+﻿{
+    "appName":  "StandupFlow",
+    "serverPort":  8080,
+    "apiBaseUrl":  "http://localhost:8080/api/v1",
+    "frontendPort":  3000,
+    "dbHost":  "localhost",
+    "dbPort":  3306,
+    "dbName":  "standupflow_db"
+}
