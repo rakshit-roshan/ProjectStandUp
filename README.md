@@ -1,10 +1,10 @@
-# 🚀 StandupFlow — Agile Project & Team Performance Management Platform
+# StandupFlow — Agile Project & Team Performance Management Platform
 
-StandupFlow is an enterprise-grade Agile Project Management & Developer Workspace platform built with **Spring Boot 3 (Java 17)** backend REST APIs and a **React + Vite** frontend. It streamlines sprint planning, task tracking, bug reporting, team chat messaging, and employee health analytics.
+StandupFlow is an enterprise-grade Agile Project Management & Developer Workspace platform built with Spring Boot 3 (Java 17) backend REST APIs and a React + Vite frontend. It streamlines sprint planning, task tracking, bug reporting, team chat messaging, and employee health analytics.
 
 ---
 
-## 📑 Interactive Documentation Table of Contents
+## Interactive Documentation Table of Contents
 
 - [1. System Architecture & Tech Stack](#1-system-architecture--tech-stack)
 - [2. User Roles & Access Control (RBAC)](#2-user-roles--access-control-rbac)
@@ -43,9 +43,9 @@ graph TD
 
 | Role | Access Level | Primary Workspace & Capabilities |
 | :--- | :--- | :--- |
-| 👑 **MANAGER / ADMIN** | Full Administrative Control | Create projects/sprints, assign tasks, invite/remove members, view overall analytics, manage bug reports. |
-| 💻 **DEVELOPER** | Execution & Development | View assigned tasks, track active work sessions, update task status, log code changes, team chat. |
-| 🧪 **TESTER / QA** | Quality Assurance & Testing | Dedicated testing queue, report bugs via `BugReportModal`, link issues to tasks, mark issue resolution. |
+| **MANAGER / ADMIN** | Full Administrative Control | Create projects/sprints, assign tasks, invite/remove members, view overall analytics, manage bug reports. |
+| **DEVELOPER** | Execution & Development | View assigned tasks, track active work sessions, update task status, log code changes, team chat. |
+| **TESTER / QA** | Quality Assurance & Testing | Dedicated testing queue, report bugs via `BugReportModal`, link issues to tasks, mark issue resolution. |
 
 ---
 
@@ -54,8 +54,8 @@ graph TD
 ### 3.1 Authentication & Interactive Spotlight Tour
 * **What it does**: Handles user login, registration with role selection (Manager, Developer, Tester), and launches an interactive spotlight onboarding tour for first-time users.
 * **How to Access**: 
-  * Login/Register: Automatically loaded at startup or accessible via the user avatar menu -> **Logout**.
-  * Onboarding Tour: Automatically triggers on first login or can be launched via **Settings > Re-run Onboarding Tour**.
+  * Login/Register: Automatically loaded at startup or accessible via the user avatar menu -> Logout.
+  * Onboarding Tour: Automatically triggers on first login or can be launched via Settings > Re-run Onboarding Tour.
 
 ---
 
@@ -64,7 +64,7 @@ graph TD
   * **Manager Dashboard**: Displays project health metrics, sprint velocity, overdue tasks, team workload distribution, and recent activity streams.
   * **Developer Dashboard**: Displays assigned tasks, upcoming deadlines, personal story points completed, and active session timer.
   * **Tester Dashboard**: Displays open bug reports, test pass/fail ratios, pending testing tasks, and unresolved issue queues.
-* **How to Access**: Click **Dashboard** in the main left sidebar navigation.
+* **How to Access**: Click Dashboard in the main left sidebar navigation.
 
 ---
 
@@ -73,39 +73,39 @@ graph TD
   * **Kanban Board**: Drag-and-drop or status column view (Backlog, In Progress, In Review, Completed).
   * **Table View**: Compact list with column sorting, filters, and bulk status updates.
   * **Backlog View**: Unassigned or un-sprinted work items ready for planning.
-* **How to Access**: Click **Tasks** in the left sidebar, then toggle between **Kanban**, **Table**, or **Backlog** tabs at the top.
+* **How to Access**: Click Tasks in the left sidebar, then toggle between Kanban, Table, or Backlog tabs at the top.
 
 ---
 
 ### 3.4 Sprint Planning & Execution
 * **What it does**: Enables managers to create sprints with start/end dates, target goals, and total story points. Calculates real-time sprint completion percentages.
-* **How to Access**: Click **Sprints** in the left sidebar to view active sprints, sprint metrics, or click **Create Sprint**.
+* **How to Access**: Click Sprints in the left sidebar to view active sprints, sprint metrics, or click Create Sprint.
 
 ---
 
 ### 3.5 Issue & Bug Tracking System
 * **What it does**: Comprehensive bug reporting tool with severity levels (Critical, High, Medium, Low), steps to reproduce, actual vs. expected results, environment details, and linked task associations.
 * **How to Access**: 
-  * Click **Issues / Bugs** in the left sidebar.
-  * Click **Report Bug** button (available in Tester Dashboard & Task Details Drawer) to launch `BugReportModal`.
+  * Click Issues / Bugs in the left sidebar.
+  * Click Report Bug button (available in Tester Dashboard & Task Details Drawer) to launch `BugReportModal`.
 
 ---
 
 ### 3.6 Team Roster & Workspace Invites
 * **What it does**: Displays active project workspace assignees, invite code generator, email invitation system (`sendInvitation`), and member removal functionality for Managers.
-* **How to Access**: Click **Team Members** in the left sidebar.
+* **How to Access**: Click Team Members in the left sidebar.
 
 ---
 
 ### 3.7 WhatsApp-Style Real-time Team Chat
-* **What it does**: Real-time team messaging featuring 1-on-1 Direct Messages and Group Channels (`#general`, `#dev-team`). Supports file/photo attachments, unread message badges, and **"Delete for Everyone"** soft-delete placeholder (`🚫 You deleted this message` / `🚫 This message was deleted`).
-* **How to Access**: Click **Team Chat** in the left sidebar navigation.
+* **What it does**: Real-time team messaging featuring 1-on-1 Direct Messages and Group Channels (`#general`, `#dev-team`). Supports file/photo attachments, unread message badges, and "Delete for Everyone" soft-delete placeholder (`You deleted this message` / `This message was deleted`).
+* **How to Access**: Click Team Chat in the left sidebar navigation.
 
 ---
 
 ### 3.8 Health & Performance Analytics
 * **What it does**: Tracks developer burnout risk, workload distribution, project risk scores, performance reviews, and delivery rate metrics.
-* **How to Access**: Click **Health & Analytics** in the left sidebar to toggle between **Employee Health**, **Project Health**, and **Performance Reviews**.
+* **How to Access**: Click Health & Analytics in the left sidebar to toggle between Employee Health, Project Health, and Performance Reviews.
 
 ---
 
@@ -113,7 +113,7 @@ graph TD
 * **What it does**:
   * **Notifications**: Centralized feed for task assignments, issue updates, and project invitations.
   * **Settings**: Update profile info (name, department, avatar), manager invite code, dark/light theme options, and API endpoint config.
-* **How to Access**: Click the **Bell Icon** (Notifications) or **Settings** gear icon in the top header / sidebar.
+* **How to Access**: Click the Bell Icon (Notifications) or Settings gear icon in the top header / sidebar.
 
 ---
 
