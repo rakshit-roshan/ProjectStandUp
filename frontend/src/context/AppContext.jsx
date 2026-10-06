@@ -116,6 +116,47 @@ export const AppProvider = ({ children }) => {
   const [performanceReviews, setPerformanceReviews] = useState(INITIAL_PERFORMANCE_REVIEWS);
   const [chatMessages, setChatMessages] = useState(getStoredChatMessages);
   const [chatChannels, setChatChannels] = useState([]);
+  const [rolesPermissions, setRolesPermissions] = useState([]);
+
+  const fetchRolesPermissions = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/roles`);
+      if (res.ok) {
+        const data = await res.json();
+        setRolesPermissions(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch roles permissions", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchRolesPermissions();
+    }
+  }, [isAuthenticated]);
+
+  const hasPermission = (menuKey) => {
+    if (currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1) {
+      return true;
+    }
+    const userRoleCode = currentUser?.roleCode || currentUser?.role;
+    const roleObj = rolesPermissions.find(r => 
+      String(r.roleCode) === String(userRoleCode) || 
+      (r.roleName && currentUser?.role && r.roleName.toLowerCase().includes(String(currentUser.role).toLowerCase()))
+    );
+
+    if (!roleObj || !roleObj.permissionsJson) {
+      return true;
+    }
+
+    try {
+      const perms = JSON.parse(roleObj.permissionsJson);
+      return Array.isArray(perms) ? perms.includes(menuKey) : true;
+    } catch (e) {
+      return true;
+    }
+  };
 
   // View & UI Navigation State
   const [currentView, setCurrentView] = useState(() => {
@@ -1390,6 +1431,10 @@ export const AppProvider = ({ children }) => {
         isOnboardingOpen,
         searchQuery,
         sidebarCollapsed,
+        rolesPermissions,
+        fetchRolesPermissions,
+        hasPermission,
+        API_BASE_URL,
         // Setters
         setCurrentProject,
         setCurrentSprint,

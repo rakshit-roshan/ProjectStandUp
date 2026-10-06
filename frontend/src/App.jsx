@@ -34,6 +34,10 @@ import { SettingsView } from './components/settings/SettingsView';
 import { TeamMembersView } from './components/team/TeamMembersView';
 import { TeamChatView } from './components/chat/TeamChatView';
 
+// Admin & Governance
+import { UserAccountsView } from './components/admin/UserAccountsView';
+import { UserRolesView } from './components/admin/UserRolesView';
+
 // Auth & Tour
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
@@ -85,6 +89,10 @@ const MainContent = () => {
         return <PerformanceReviewView />;
       case 'reports':
         return <ReportsAnalyticsView />;
+      case 'user_accounts':
+        return <UserAccountsView />;
+      case 'user_roles':
+        return <UserRolesView />;
       case 'notifications':
         return <NotificationsCenterView />;
       case 'settings':
