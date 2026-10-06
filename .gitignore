@@ -13,6 +13,7 @@ target/
 # Environment & Config
 .env
 .env.local
+.ini
 
 # IDE & OS
 .vscode/
