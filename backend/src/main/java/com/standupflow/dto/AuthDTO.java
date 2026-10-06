@@ -5,37 +5,46 @@ import com.standupflow.model.User;
 public class AuthDTO {
 
     public static class LoginRequest {
-        private String email;
+        private String email; // Accepts either Email ID or Username
         private String password;
+        private String companyId;
 
         public LoginRequest() {}
 
-        public LoginRequest(String email, String password) {
+        public LoginRequest(String email, String password, String companyId) {
             this.email = email;
             this.password = password;
+            this.companyId = companyId;
         }
 
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
 
+        public String getEmailOrUsername() { return email; }
+
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
+
+        public String getCompanyId() { return companyId; }
+        public void setCompanyId(String companyId) { this.companyId = companyId; }
     }
 
     public static class RegisterRequest {
         private String name;
         private String email;
+        private String username;
         private String password;
-        private String company;
-        private String role; // MANAGER, DEVELOPER, TESTER
+        private String company; // Company Name
+        private String role; // ROOT, ENGINEER, TESTER, MANAGER
         private String department;
         private String managerCode;
 
         public RegisterRequest() {}
 
-        public RegisterRequest(String name, String email, String password, String company, String role, String department, String managerCode) {
+        public RegisterRequest(String name, String email, String username, String password, String company, String role, String department, String managerCode) {
             this.name = name;
             this.email = email;
+            this.username = username;
             this.password = password;
             this.company = company;
             this.role = role;
@@ -48,6 +57,9 @@ public class AuthDTO {
 
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
+
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
 
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
@@ -69,6 +81,8 @@ public class AuthDTO {
         private boolean success;
         private String message;
         private User user;
+        private String companyId;
+        private String databaseName;
 
         public AuthResponse() {}
 
@@ -76,6 +90,14 @@ public class AuthDTO {
             this.success = success;
             this.message = message;
             this.user = user;
+        }
+
+        public AuthResponse(boolean success, String message, User user, String companyId, String databaseName) {
+            this.success = success;
+            this.message = message;
+            this.user = user;
+            this.companyId = companyId;
+            this.databaseName = databaseName;
         }
 
         public boolean isSuccess() { return success; }
@@ -86,5 +108,11 @@ public class AuthDTO {
 
         public User getUser() { return user; }
         public void setUser(User user) { this.user = user; }
+
+        public String getCompanyId() { return companyId; }
+        public void setCompanyId(String companyId) { this.companyId = companyId; }
+
+        public String getDatabaseName() { return databaseName; }
+        public void setDatabaseName(String databaseName) { this.databaseName = databaseName; }
     }
 }

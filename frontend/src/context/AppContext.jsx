@@ -175,22 +175,52 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentView, isAuthenticated]);
 
+  const getHeaders = (extra = {}) => {
+    const headers = { 'Content-Type': 'application/json', ...extra };
+    const companyId = localStorage.getItem('standupflow_company_id');
+    if (companyId) {
+      headers['X-Company-Id'] = companyId;
+    }
+    return headers;
+  };
+
+  const checkTenantDeleted = (res) => {
+    if (res && (res.status === 401 || res.headers?.get('X-Tenant-Deleted') === 'true')) {
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setCurrentView('login');
+      localStorage.removeItem('standupflow_user');
+      localStorage.removeItem('standupflow_role');
+      localStorage.removeItem('standupflow_auth');
+      localStorage.removeItem('standupflow_view');
+      localStorage.removeItem('standupflow_company_id');
+      setAuthError('Your company workspace or database was deleted. You have been disconnected.');
+      return true;
+    }
+    return false;
+  };
+
   // Fetch initial and periodic data from Spring Boot REST API
   useEffect(() => {
     const fetchApiData = async () => {
       const activeUrl = apiUrl || API_BASE_URL;
+      const headers = getHeaders();
       try {
         const [tasksRes, issuesRes, projectsRes, sprintsRes, usersRes, invRes, notifRes, chatMsgsRes, chatChanRes] = await Promise.all([
-          fetch(`${activeUrl}/tasks`),
-          fetch(`${activeUrl}/issues`),
-          fetch(`${activeUrl}/projects`),
-          fetch(`${activeUrl}/sprints`),
-          fetch(`${activeUrl}/users`),
-          fetch(`${activeUrl}/invitations`),
-          fetch(`${activeUrl}/notifications`),
-          fetch(`${activeUrl}/chat/messages`),
-          fetch(`${activeUrl}/chat/channels`)
+          fetch(`${activeUrl}/tasks`, { headers }),
+          fetch(`${activeUrl}/issues`, { headers }),
+          fetch(`${activeUrl}/projects`, { headers }),
+          fetch(`${activeUrl}/sprints`, { headers }),
+          fetch(`${activeUrl}/users`, { headers }),
+          fetch(`${activeUrl}/invitations`, { headers }),
+          fetch(`${activeUrl}/notifications`, { headers }),
+          fetch(`${activeUrl}/chat/messages`, { headers }),
+          fetch(`${activeUrl}/chat/channels`, { headers })
         ]);
+
+        if (checkTenantDeleted(tasksRes) || checkTenantDeleted(usersRes) || checkTenantDeleted(projectsRes)) {
+          return;
+        }
 
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
@@ -282,6 +312,10 @@ export const AppProvider = ({ children }) => {
 
       if (response.ok && data.success) {
         const user = data.user;
+        const compId = data.companyId || user.companyId;
+        if (compId) {
+          localStorage.setItem('standupflow_company_id', compId);
+        }
         setCurrentUser(user);
         setCurrentRole(user.role);
         setIsAuthenticated(true);
@@ -331,15 +365,17 @@ export const AppProvider = ({ children }) => {
 
       if (response.ok && data.success) {
         const user = data.user;
+        const compId = data.companyId || user.companyId;
+        if (compId) {
+          localStorage.setItem('standupflow_company_id', compId);
+        }
         setCurrentUser(user);
         setCurrentRole(user.role);
         setUsers(prev => [user, ...prev]);
         setIsAuthenticated(true);
 
-        // Strict role view assignment
-        if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
-        else if (user.role === 'TESTER') setCurrentView('tester_workspace');
-        else setCurrentView('dashboard');
+        // Root / Manager admin gets full dashboard
+        setCurrentView('dashboard');
 
         // Always show tutorial tour after first registration!
         setIsOnboardingOpen(true);
@@ -349,13 +385,15 @@ export const AppProvider = ({ children }) => {
         return false;
       }
     } catch (err) {
+      const compId = String(Math.floor(Math.random() * 89999999 + 10000000));
+      localStorage.setItem('standupflow_company_id', compId);
       const newUser = {
-        id: `USR-${Date.now()}`,
+        id: String(Date.now()),
         name,
         email,
         password,
-        role: role.toUpperCase(),
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+        role: 'ADMIN',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&q=80',
         department: department || 'Engineering',
         workload: 'Balanced',
         assignedTasksCount: 0,
@@ -364,15 +402,14 @@ export const AppProvider = ({ children }) => {
         loggedHoursThisWeek: 0,
         onTimeDeliveryRate: 100,
         reopenedBugsCount: 0,
-        hasCompletedTour: false
+        hasCompletedTour: false,
+        companyId: compId
       };
       setUsers(prev => [newUser, ...prev]);
       setCurrentUser(newUser);
       setCurrentRole(newUser.role);
       setIsAuthenticated(true);
-      if (newUser.role === 'DEVELOPER') setCurrentView('developer_workspace');
-      else if (newUser.role === 'TESTER') setCurrentView('tester_workspace');
-      else setCurrentView('dashboard');
+      setCurrentView('dashboard');
       setIsOnboardingOpen(true);
       return true;
     }
@@ -403,21 +440,23 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem('standupflow_role');
     localStorage.removeItem('standupflow_auth');
     localStorage.removeItem('standupflow_view');
+    localStorage.removeItem('standupflow_company_id');
   };
 
   // Update Profile Info (Name, Email, Password, Department, Avatar)
   const updateUserProfile = async (profileData) => {
     if (!currentUser) return { success: false, message: 'No user active' };
     const updatedUser = { ...currentUser, ...profileData };
-    setCurrentUser(updatedUser);
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
 
     try {
       const res = await fetch(`${API_BASE_URL}/users/${currentUser.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(profileData)
       });
+      if (checkTenantDeleted(res)) {
+        return { success: false, message: 'Database deleted. Disconnecting...' };
+      }
       if (res.ok) {
         const saved = await res.json();
         setCurrentUser(saved);
@@ -427,6 +466,8 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       console.warn('Profile updated locally.');
     }
+    setCurrentUser(updatedUser);
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
     return { success: true, user: updatedUser };
   };
 

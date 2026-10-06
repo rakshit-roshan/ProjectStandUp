@@ -46,6 +46,9 @@ export const Sidebar = () => {
   const openIssuesCount = issues.filter(i => i.state !== 'Done').length;
 
   const normRole = (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
+  const isAdmin = currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1 || currentUser?.role === 'ADMIN' || currentUser?.role === 1 || currentUser?.role === '1';
+  const isEngineer = normRole === 'ENGINEER' || isAdmin;
+  const isTester = currentRole === 'TESTER' || isAdmin;
   const isAssigned = true; // Every user has full active workspace access
   const disabledClass = '';
 
@@ -93,7 +96,7 @@ export const Sidebar = () => {
             </button>
 
             {/* Projects */}
-            {normRole === 'ENGINEER' && (
+            {isEngineer && (
               <button
                 onClick={() => navigateTo('project_health')}
                 disabled={!isAssigned}
@@ -139,7 +142,7 @@ export const Sidebar = () => {
             </button>
 
             {/* Tasks Queue */}
-            {normRole === 'ENGINEER' && (
+            {isEngineer && (
               <div>
                 <button
                   onClick={() => {
@@ -215,7 +218,7 @@ export const Sidebar = () => {
             </button>
 
             {/* Monitor */}
-            {normRole === 'ENGINEER' && (
+            {isEngineer && (
               <button
                 onClick={() => navigateTo('monitor')}
                 disabled={!isAssigned}
@@ -249,7 +252,7 @@ export const Sidebar = () => {
         </div>
 
         {/* MANAGEMENT CONSOLE SECTION */}
-        {normRole === 'ENGINEER' && (
+        {isEngineer && (
           <div>
             {!sidebarCollapsed && (
               <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -303,7 +306,7 @@ export const Sidebar = () => {
         )}
 
         {/* TESTING SECTION */}
-        {currentRole === 'TESTER' && (
+        {isTester && (
           <div>
             {!sidebarCollapsed && (
               <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -406,9 +409,9 @@ export const Sidebar = () => {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <div className="truncate">
-              <div className="text-[11px] font-bold text-white truncate">{currentRole === 'MANAGER' ? 'Manager Console' : `${currentRole} Console`}</div>
+              <div className="text-[11px] font-bold text-white truncate">{isAdmin ? 'Admin Console' : currentRole === 'MANAGER' ? 'Manager Console' : `${currentRole} Console`}</div>
               <div className="text-[10px] text-emerald-400 font-medium">Connected</div>
-              <div className="text-[9px] text-slate-400 font-mono truncate">MariaDB: standupflow_db</div>
+              <div className="text-[9px] text-slate-400 font-mono truncate">MariaDB: {currentUser?.companyId ? `standupflow_db_${currentUser.companyId}` : 'standupflow_db'}</div>
             </div>
           </div>
         </div>

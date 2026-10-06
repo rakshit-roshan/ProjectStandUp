@@ -53,16 +53,18 @@ export const Header = () => {
   );
   const unreadNotifs = userNotifications.filter(n => !n.read);
   const hasNoProjects = !projects || projects.length === 0 || !currentProject;
-  const isAssigned = currentRole === 'MANAGER' || Boolean(currentUser?.managerCode);
+  const isAdmin = currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1 || currentUser?.role === 'ADMIN' || currentUser?.role === 1 || currentUser?.role === '1';
+  const isAssigned = isAdmin || currentRole === 'MANAGER' || Boolean(currentUser?.managerCode);
   const disabledClass = (!isAssigned || hasNoProjects) ? 'opacity-40 cursor-not-allowed pointer-events-none' : '';
 
   const roleBadges = {
+    ADMIN: { bg: 'bg-amber-50 text-amber-700 border-amber-200/80', label: 'Company Administrator (Root)', icon: Shield },
     ENGINEER: { bg: 'bg-blue-50 text-blue-700 border-blue-200/80', label: 'Software Engineer / Lead', icon: Code },
     TESTER: { bg: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200/80', label: 'QA / Tester Workspace', icon: CheckSquare }
   };
 
-  const normRole = (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
-  const currentRoleInfo = roleBadges[normRole] || roleBadges.ENGINEER;
+  const normRole = isAdmin ? 'ADMIN' : (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
+  const currentRoleInfo = roleBadges[normRole] || roleBadges.ADMIN;
   const RoleIcon = currentRoleInfo.icon;
 
   return (

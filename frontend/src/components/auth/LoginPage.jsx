@@ -39,9 +39,6 @@ export const LoginPage = () => {
               <span className="font-bold text-slate-900 text-xl tracking-tight">
                 Standup<span className="text-[#0A66C2]">Flow</span>
               </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 rounded">
-                Enterprise
-              </span>
             </div>
           </div>
 
@@ -129,14 +126,14 @@ export const LoginPage = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Email address
+                    Email address or Username
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="name@company.com"
+                      placeholder="name@company.com or username"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full bg-white border border-slate-300 focus:border-[#0A66C2] focus:ring-2 focus:ring-blue-100 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 font-medium outline-none transition-all"

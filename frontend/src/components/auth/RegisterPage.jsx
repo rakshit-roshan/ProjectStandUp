@@ -58,7 +58,7 @@ export const RegisterPage = () => {
     e.preventDefault();
     if (!name || !email || !password) return;
     setLoading(true);
-    await register(name, email, password, company, selectedRole, department);
+    await register(name, email, password, company, 'ADMIN', department);
     setLoading(false);
   };
 
@@ -73,9 +73,6 @@ export const RegisterPage = () => {
             <div className="flex items-baseline space-x-1.5">
               <span className="font-bold text-slate-900 text-xl tracking-tight">
                 Standup<span className="text-[#0A66C2]">Flow</span>
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 rounded">
-                Registration
               </span>
             </div>
           </div>
@@ -98,10 +95,10 @@ export const RegisterPage = () => {
         {/* Title Heading */}
         <div className="text-center space-y-1 mb-4 max-w-xl shrink-0">
           <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 tracking-tight">
-            Make the most of your professional team workflow
+            Create Your Company Workspace
           </h1>
           <p className="text-xs text-slate-500 font-normal">
-            Join your company workspace and streamline daily standups, tasks, and QA triage
+            Registers your organization, generates a unique Company ID, provisions an isolated database schema, and sets you as Root Administrator.
           </p>
         </div>
 
@@ -186,62 +183,19 @@ export const RegisterPage = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Company Name
+                  Company / Organization Name *
                 </label>
                 <div className="relative">
                   <Building className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
+                    required
                     placeholder="Company Name"
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
                     className="w-full bg-white border border-slate-300 focus:border-[#0A66C2] focus:ring-2 focus:ring-blue-100 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 font-medium outline-none transition-all"
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Role Workspace Selection */}
-            <div className="space-y-2.5 pt-1">
-              <div>
-                <label className="block text-xs font-semibold text-slate-800">
-                  Select Your Primary Role Workspace
-                </label>
-                <p className="text-xs text-slate-500 font-normal">
-                  Sets your default dashboard layout, navigation tabs, and permissions
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {roles.map(r => {
-                  const Icon = r.icon;
-                  const isSelected = selectedRole === r.id;
-                  return (
-                    <div
-                      key={r.id}
-                      onClick={() => setSelectedRole(r.id)}
-                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all space-y-2 relative ${
-                        isSelected ? r.color : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-[#0A66C2] text-white' : 'bg-slate-100 text-slate-600'}`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{r.badge}</span>
-                        </div>
-                        {isSelected && (
-                          <CheckCircle2 className="w-4 h-4 text-[#0A66C2] fill-blue-100" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900 text-xs">{r.title}</div>
-                        <p className="text-xs text-slate-500 leading-snug font-normal mt-0.5">{r.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
