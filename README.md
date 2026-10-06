@@ -156,7 +156,7 @@ cd frontend
 npm install
 npm run dev
 ```
-*Frontend opens on `http://localhost:3001`*
+*Frontend opens on `http://localhost:3000`*
 
 ---
 
