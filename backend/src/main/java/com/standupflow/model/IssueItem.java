@@ -14,22 +14,36 @@ public class IssueItem {
     private String state; // Pending, In Progress, Done
     private String priority; // Critical, High, Medium, Low
     private String severity;
+    @Column(name = "assignee_id")
     private String assigneeId;
+    @Column(name = "assignee_name")
     private String assigneeName;
+    @Column(name = "assignee_avatar")
     private String assigneeAvatar;
+    @Column(name = "reporter_id")
     private String reporterId;
+    @Column(name = "reporter_name")
     private String reporterName;
     private String module;
+    @Column(name = "project_id")
     private String projectId;
+    @Column(name = "project_name")
     private String projectName;
+    @Column(name = "linked_task_id")
     private String linkedTaskId;
+    @Column(name = "linked_task_title")
     private String linkedTaskTitle;
+    @Column(name = "start_date")
     private String startDate;
+    @Column(name = "due_date")
     private String dueDate;
+    @Column(name = "end_date")
     private String endDate;
-    @Column(length = 2000)
+    @Column(name = "steps_to_reproduce", length = 2000)
     private String stepsToReproduce;
+    @Column(name = "expected_result")
     private String expectedResult;
+    @Column(name = "actual_result")
     private String actualResult;
     private String environment;
 

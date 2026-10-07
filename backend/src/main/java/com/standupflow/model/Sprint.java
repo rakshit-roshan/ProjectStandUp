@@ -9,16 +9,24 @@ public class Sprint {
     @Id
     private String id;
     private String name;
+    @Column(name = "project_id")
     private String projectId;
+    @Column(name = "project_name")
     private String projectName;
     @Column(length = 1000)
     private String goal;
+    @Column(name = "start_date")
     private String startDate;
+    @Column(name = "end_date")
     private String endDate;
     private String status; // Active, Planning, Completed
+    @Column(name = "total_tasks")
     private Integer totalTasks;
+    @Column(name = "completed_tasks")
     private Integer completedTasks;
+    @Column(name = "story_points")
     private Integer storyPoints;
+    @Column(name = "completed_story_points")
     private Integer completedStoryPoints;
 
     public Sprint() {}

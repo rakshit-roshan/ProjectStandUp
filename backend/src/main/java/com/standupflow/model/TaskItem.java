@@ -15,22 +15,39 @@ public class TaskItem {
     private String description;
     private String status; // Backlog, In Progress, In Review, Completed
     private String priority; // Critical, High, Medium, Low
+    @Column(name = "assignee_id")
     private String assigneeId;
+    @Column(name = "assignee_name")
     private String assigneeName;
+    @Column(name = "assignee_avatar")
     private String assigneeAvatar;
+    @Column(name = "reporter_id")
     private String reporterId;
+    @Column(name = "reporter_name")
     private String reporterName;
+    @Column(name = "sprint_id")
     private String sprintId;
+    @Column(name = "sprint_name")
     private String sprintName;
+    @Column(name = "project_id")
     private String projectId;
+    @Column(name = "project_name")
     private String projectName;
+    @Column(name = "story_points")
     private Integer storyPoints;
+    @Column(name = "start_date")
     private String startDate;
+    @Column(name = "due_date")
     private String dueDate;
+    @Column(name = "updated_at")
     private String updatedAt;
+    @Column(name = "testing_status")
     private String testingStatus; // Pending Testing, In Testing, Passed, Failed, Blocked
+    @Column(name = "tester_id")
     private String testerId;
+    @Column(name = "tester_name")
     private String testerName;
+    @Column(name = "has_issue")
     private Boolean hasIssue;
 
     public TaskItem() {}

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const UserAccountsView = () => {
-  const { users, currentUser, rolesPermissions, fetchRolesPermissions, createUser, toggleEnableUser, updateUserRole, API_BASE_URL } = useApp();
+  const { users, setUsers, fetchUsers, currentUser, rolesPermissions, fetchRolesPermissions, createUser, toggleEnableUser, updateUserRole, API_BASE_URL } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [rolesList, setRolesList] = useState([]);
@@ -27,15 +27,28 @@ export const UserAccountsView = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedRoleCode, setSelectedRoleCode] = useState(3);
+  const [selectedRoleCode, setSelectedRoleCode] = useState(1);
   const [department, setDepartment] = useState('Engineering');
   const [formError, setFormError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const getHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const companyId = currentUser?.companyId || localStorage.getItem('standupflow_company_id');
+    if (companyId) {
+      headers['X-Company-Id'] = companyId;
+    }
+    return headers;
+  };
+
+  useEffect(() => {
+    if (fetchUsers) fetchUsers();
+  }, []);
+
   useEffect(() => {
     const loadRoles = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/roles`);
+        const res = await fetch(`${API_BASE_URL}/roles`, { headers: getHeaders() });
         if (res.ok) {
           const data = await res.json();
           setRolesList(data);
@@ -45,16 +58,20 @@ export const UserAccountsView = () => {
       }
     };
     loadRoles();
-  }, [API_BASE_URL]);
+  }, [API_BASE_URL, isModalOpen]);
 
-  const defaultRoles = [
-    { roleCode: 1, roleName: 'Company Administrator' },
-    { roleCode: 2, roleName: 'Engineering Manager' },
-    { roleCode: 3, roleName: 'Software Engineer' },
-    { roleCode: 4, roleName: 'QA / Tester' }
-  ];
+  // Filter out default system roles (Engineering Manager [2], Software Engineer [3], QA / Tester [4]).
+  // Include ONLY Main Admin (Company Administrator [1]) and created custom roles (roleCode > 4, !isSystem).
+  const assignableRoles = rolesList.filter(r => Number(r.roleCode) === 1 || (!r.isSystem && Number(r.roleCode) > 4));
+  const activeRoles = assignableRoles.length > 0
+    ? assignableRoles
+    : [{ roleCode: 1, roleName: 'Company Administrator' }];
 
-  const activeRoles = rolesList.length > 0 ? rolesList : defaultRoles;
+  useEffect(() => {
+    if (activeRoles.length > 0 && !activeRoles.some(r => Number(r.roleCode) === Number(selectedRoleCode))) {
+      setSelectedRoleCode(Number(activeRoles[0].roleCode));
+    }
+  }, [rolesList]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -68,10 +85,11 @@ export const UserAccountsView = () => {
     try {
       const targetRoleObj = activeRoles.find(r => Number(r.roleCode) === Number(selectedRoleCode));
       const roleName = targetRoleObj ? targetRoleObj.roleName : 'DEVELOPER';
+      const companyId = currentUser?.companyId || localStorage.getItem('standupflow_company_id');
 
       const res = await fetch(`${API_BASE_URL}/users/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim(),
@@ -79,17 +97,22 @@ export const UserAccountsView = () => {
           password: password.trim() || 'Password123!',
           role: String(selectedRoleCode),
           department: department.trim(),
-          managerCode: currentUser?.managerCode || 'ORG99'
+          managerCode: currentUser?.managerCode || 'ORG99',
+          companyId: companyId
         })
       });
 
       if (res.ok) {
+        const savedUser = await res.json();
         setIsModalOpen(false);
         setName('');
         setEmail('');
         setUsername('');
         setPassword('');
-        window.location.reload();
+        if (savedUser && savedUser.id && setUsers) {
+          setUsers(prev => [savedUser, ...prev.filter(u => u.id !== savedUser.id)]);
+        }
+        if (fetchUsers) fetchUsers();
       } else {
         const text = await res.text();
         setFormError(text || "Failed to create user account.");
@@ -102,11 +125,13 @@ export const UserAccountsView = () => {
   };
 
   const filteredUsers = (users || []).filter(u => {
-    const q = searchQuery.toLowerCase();
+    if (!searchQuery || !searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
     return (
       (u.fullname && u.fullname.toLowerCase().includes(q)) ||
       (u.name && u.name.toLowerCase().includes(q)) ||
       (u.emailid && u.emailid.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
       (u.username && u.username.toLowerCase().includes(q))
     );
   });
@@ -130,7 +155,7 @@ export const UserAccountsView = () => {
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          <span>+ Create New Account</span>
+          <span>Create New Account</span>
         </button>
       </div>
 
@@ -191,13 +216,12 @@ export const UserAccountsView = () => {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400 font-mono">ID: {usr.id}</div>
                         </div>
                       </div>
                     </td>
 
                     <td className="py-3 px-4 font-mono font-bold text-blue-700">
-                      @{usr.username || 'user'}
+                      {usr.username || 'user'}
                     </td>
 
                     <td className="py-3 px-4 text-slate-600">
@@ -206,7 +230,13 @@ export const UserAccountsView = () => {
 
                     <td className="py-3 px-4">
                       <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded font-semibold border border-slate-200">
-                        {usr.role || 'DEVELOPER'}
+                        {(() => {
+                          const targetCode = usr.roleCode !== undefined && usr.roleCode !== null ? usr.roleCode : usr.role;
+                          const foundRole = rolesList.find(r => Number(r.roleCode) === Number(targetCode));
+                          if (foundRole) return foundRole.roleName;
+                          if (Number(targetCode) === 1 || usr.role === 'ADMIN') return 'Company Administrator';
+                          return usr.role || 'DEVELOPER';
+                        })()}
                       </span>
                     </td>
 
@@ -231,12 +261,17 @@ export const UserAccountsView = () => {
                           onClick={async () => {
                             const newStatus = isAccountEnabled ? 0 : 1;
                             try {
-                              await fetch(`${API_BASE_URL}/users/${usr.id}/toggle-enable`, {
+                              const res = await fetch(`${API_BASE_URL}/users/${usr.id}/toggle-enable`, {
                                 method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: getHeaders(),
                                 body: JSON.stringify({ enable: newStatus })
                               });
-                              window.location.reload();
+                              if (res.ok) {
+                                if (setUsers) {
+                                  setUsers(prev => prev.map(u => u.id === usr.id ? { ...u, enable: newStatus } : u));
+                                }
+                                if (fetchUsers) fetchUsers();
+                              }
                             } catch (e) {
                               console.error(e);
                             }

@@ -10,16 +10,21 @@ public class Invitation {
     @Id
     private String id;
 
+    @Column(name = "manager_id")
     private String managerId;
+    @Column(name = "manager_name")
     private String managerName;
+    @Column(name = "manager_code")
     private String managerCode;
+    @Column(name = "project_id")
     private String projectId;
     
-    @Column(nullable = false)
+    @Column(name = "invitee_email", nullable = false)
     private String inviteeEmail;
 
     private String status; // PENDING, ACCEPTED, DECLINED
 
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     public Invitation() {}

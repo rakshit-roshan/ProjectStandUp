@@ -88,7 +88,7 @@ export const Sidebar = () => {
             </div>
           )}
           <nav className="space-y-1 mt-1">
-            {/* Home Dashboard */}
+            {/* Home */}
             <button
               onClick={() => {
                 setActiveAccordion(null);
@@ -102,7 +102,7 @@ export const Sidebar = () => {
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title={isAssigned ? "Home Dashboard" : "Enter Manager Code in Settings to Unlock"}
+              title="Home"
             >
               <Home className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span>Home</span>}
@@ -121,14 +121,14 @@ export const Sidebar = () => {
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Projects Overview"
+                title="Projects"
               >
                 <Layers className="w-4 h-4 shrink-0" />
                 {!sidebarCollapsed && <span>Projects</span>}
               </button>
             )}
 
-            {/* Team Members Roster */}
+            {/* Team Members */}
             {hasPermission('team_members') && (
               <button
                 onClick={() => {
@@ -140,7 +140,7 @@ export const Sidebar = () => {
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Team Members Roster"
+                title="Team Members"
               >
                 <Users className="w-4 h-4 shrink-0 text-indigo-400" />
                 {!sidebarCollapsed && <span>Team Members</span>}
@@ -167,6 +167,73 @@ export const Sidebar = () => {
               </button>
             )}
 
+            {/* Issues Registry */}
+            {hasPermission('issues') && (
+              <button
+                onClick={() => {
+                  setActiveAccordion(null);
+                  navigateTo('issues');
+                }}
+                disabled={!isAssigned}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
+                  isActive('issues')
+                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Issues Registry"
+              >
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  {!sidebarCollapsed && <span>Issues Registry</span>}
+                </div>
+                {!sidebarCollapsed && openIssuesCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-bold rounded-full font-mono">
+                    {openIssuesCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Team Monitor */}
+            {hasPermission('monitor') && (
+              <button
+                onClick={() => {
+                  setActiveAccordion(null);
+                  navigateTo('monitor');
+                }}
+                disabled={!isAssigned}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
+                  isActive('monitor')
+                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Team Monitor"
+              >
+                <Activity className="w-4 h-4 shrink-0 text-cyan-400" />
+                {!sidebarCollapsed && <span>Team Monitor</span>}
+              </button>
+            )}
+
+            {/* Work Health */}
+            {hasPermission('employee_health') && (
+              <button
+                onClick={() => {
+                  setActiveAccordion(null);
+                  navigateTo('employee_health');
+                }}
+                disabled={!isAssigned}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
+                  isActive('employee_health')
+                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Work Health"
+              >
+                <HeartPulse className="w-4 h-4 shrink-0 text-emerald-400" />
+                {!sidebarCollapsed && <span>Work Health</span>}
+              </button>
+            )}
+
             {/* Tasks Queue */}
             {(hasPermission('tasks_kanban') || hasPermission('tasks_table')) && (
               <div>
@@ -184,7 +251,7 @@ export const Sidebar = () => {
                       ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
                   }`}
-                  title={isAssigned ? "Tasks Queue" : "Enter Manager Code in Settings to Unlock"}
+                  title="Tasks Queue"
                 >
                   <div className="flex items-center space-x-3">
                     <Kanban className="w-4 h-4 shrink-0 text-blue-400" />
@@ -223,47 +290,6 @@ export const Sidebar = () => {
                   </div>
                 )}
               </div>
-            )}
-
-
-            {/* Monitor */}
-            {hasPermission('monitor') && (
-              <button
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('monitor');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('monitor')
-                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-                title="Team Monitor"
-              >
-                <Activity className="w-4 h-4 shrink-0 text-cyan-400" />
-                {!sidebarCollapsed && <span>Team Monitor</span>}
-              </button>
-            )}
-
-            {/* Work Health */}
-            {hasPermission('employee_health') && (
-              <button
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('employee_health');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('employee_health')
-                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-                title={isAssigned ? "Work Health" : "Enter Manager Code in Settings to Unlock"}
-              >
-                <HeartPulse className="w-4 h-4 shrink-0 text-emerald-400" />
-                {!sidebarCollapsed && <span>Work Health</span>}
-              </button>
             )}
           </nav>
         </div>
@@ -340,7 +366,7 @@ export const Sidebar = () => {
         )}
 
         {/* TESTING SECTION */}
-        {(hasPermission('tester_workspace') || hasPermission('issues')) && (
+        {hasPermission('tester_workspace') && (
           <div>
             <nav className="space-y-1">
               <button
@@ -353,7 +379,7 @@ export const Sidebar = () => {
                 }}
                 disabled={!isAssigned}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('tester_workspace') || isActive('issues')
+                  isActive('tester_workspace')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
@@ -380,22 +406,6 @@ export const Sidebar = () => {
                       }`}
                     >
                       Testing Queue
-                    </button>
-                  )}
-                  {hasPermission('issues') && (
-                    <button
-                      onClick={() => navigateTo('issues')}
-                      disabled={!isAssigned}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                        isActive('issues') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <span>Defect Bug Reports</span>
-                      {openIssuesCount > 0 && (
-                        <span className="px-1.5 py-0.2 bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-bold rounded-full font-mono">
-                          {openIssuesCount}
-                        </span>
-                      )}
                     </button>
                   )}
                 </div>
@@ -483,7 +493,7 @@ export const Sidebar = () => {
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title={isAssigned ? "Notifications" : "Enter Manager Code in Settings to Unlock"}
+              title="Notifications"
             >
               <div className="flex items-center space-x-3">
                 <Bell className="w-4 h-4 shrink-0" />
@@ -506,10 +516,10 @@ export const Sidebar = () => {
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title="Settings (Enter Code)"
+              title="Workspace Settings"
             >
               <Settings className="w-4 h-4 shrink-0 text-slate-300" />
-              {!sidebarCollapsed && <span>Settings (Enter Code)</span>}
+              {!sidebarCollapsed && <span>Workspace Settings</span>}
             </button>
 
             <button

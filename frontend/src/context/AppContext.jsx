@@ -197,6 +197,9 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('standupflow_user', JSON.stringify(currentUser));
+      if (currentUser.companyId) {
+        localStorage.setItem('standupflow_company_id', currentUser.companyId);
+      }
     } else {
       localStorage.removeItem('standupflow_user');
     }
@@ -218,7 +221,7 @@ export const AppProvider = ({ children }) => {
 
   const getHeaders = (extra = {}) => {
     const headers = { 'Content-Type': 'application/json', ...extra };
-    const companyId = localStorage.getItem('standupflow_company_id');
+    const companyId = localStorage.getItem('standupflow_company_id') || currentUser?.companyId;
     if (companyId) {
       headers['X-Company-Id'] = companyId;
     }
@@ -296,7 +299,7 @@ export const AppProvider = ({ children }) => {
         }
         if (usersRes.ok) {
           const usersData = await usersRes.json();
-          if (usersData && usersData.length > 0) setUsers(usersData);
+          if (usersData && Array.isArray(usersData)) setUsers(usersData);
         }
         if (invRes && invRes.ok) {
           const invData = await invRes.json();
@@ -1390,10 +1393,30 @@ export const AppProvider = ({ children }) => {
   const selectedIssue = issues.find(i => i.id === selectedIssueId) || issues[0];
   const selectedSprint = sprints.find(s => s.id === selectedSprintId) || sprints[0];
 
+  const fetchUsers = async () => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    const headers = getHeaders();
+    try {
+      const res = await fetch(`${activeUrl}/users`, { headers });
+      if (res.ok) {
+        const usersData = await res.json();
+        if (usersData && Array.isArray(usersData)) {
+          setUsers(usersData);
+          return usersData;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch users", e);
+    }
+    return [];
+  };
+
   return (
     <AppContext.Provider
       value={{
         users,
+        setUsers,
+        fetchUsers,
         currentUser,
         currentRole,
         isAuthenticated,

@@ -26,50 +26,68 @@ import {
 } from 'lucide-react';
 
 export const UserRolesView = () => {
-  const { currentUser, API_BASE_URL } = useApp();
+  const { currentUser, API_BASE_URL, fetchRolesPermissions } = useApp();
   const [roles, setRoles] = useState([]);
   const [selectedRoleCode, setSelectedRoleCode] = useState(1);
   const [permissions, setPermissions] = useState([]);
   const [roleName, setRoleName] = useState('');
   const [description, setDescription] = useState('');
   const [savedMessage, setSavedMessage] = useState(false);
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   
-  // New Role Form
+  // New Role Form State
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [modalError, setModalError] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const allFeatures = [
-    { key: 'dashboard', label: 'Home Dashboard', group: 'Workspace', icon: Layers, desc: 'Access primary overview dashboard' },
-    { key: 'projects', label: 'Projects Overview', group: 'Workspace', icon: Layers, desc: 'View and manage project workspaces' },
-    { key: 'team_members', label: 'Team Members Roster', group: 'Workspace', icon: Users, desc: 'Access team directory & member workload' },
-    { key: 'chat', label: 'Team Chats & Direct Messaging', group: 'Workspace', icon: MessageSquare, desc: 'Real-time team chat & direct messaging' },
-    
-    { key: 'tasks_kanban', label: 'Kanban Board View', group: 'Tasks Queue', icon: Kanban, desc: 'Visual task board columns & drag-and-drop' },
+    { key: 'dashboard', label: 'Home', group: 'Workspace', icon: Layers, desc: 'Access primary overview dashboard' },
+    { key: 'projects', label: 'Projects', group: 'Workspace', icon: Layers, desc: 'View and manage project workspaces' },
+    { key: 'team_members', label: 'Team Members', group: 'Workspace', icon: Users, desc: 'Access team directory & member workload' },
+    { key: 'chat', label: 'Chats', group: 'Workspace', icon: MessageSquare, desc: 'Real-time team chat & direct messaging' },
+    { key: 'issues', label: 'Issues Registry', group: 'Workspace', icon: AlertCircle, desc: 'Track defect bug reports & issues' },
+    { key: 'monitor', label: 'Team Monitor', group: 'Workspace', icon: Activity, desc: 'Real-time active work monitor' },
+    { key: 'employee_health', label: 'Work Health', group: 'Workspace', icon: HeartPulse, desc: 'Workload health & session duration' },
+
+    { key: 'tasks_kanban', label: 'Kanban Board', group: 'Tasks Queue', icon: Kanban, desc: 'Visual task board columns & drag-and-drop' },
     { key: 'tasks_table', label: 'Table List View', group: 'Tasks Queue', icon: Table, desc: 'Filterable table grid for all tasks' },
-    { key: 'issues', label: 'Issues Registry', group: 'Tasks Queue', icon: AlertCircle, desc: 'Track defect bug reports & issues' },
-    { key: 'monitor', label: 'Team Monitor Console', group: 'Tasks Queue', icon: Activity, desc: 'Real-time active work monitor' },
-    { key: 'employee_health', label: 'Work & Attendance Health', group: 'Tasks Queue', icon: HeartPulse, desc: 'Workload health & session duration' },
 
     { key: 'sprints', label: 'Sprints & Burndown', group: 'Management Console', icon: Zap, desc: 'Sprint planning cycles & burndown charts' },
     { key: 'reports', label: 'Reports & Analytics', group: 'Management Console', icon: BarChart3, desc: 'Sprint reports & velocity analytics' },
     { key: 'performance_review', label: 'Appraisal Reviews', group: 'Management Console', icon: Award, desc: 'Performance appraisal evaluation notes' },
 
-    { key: 'tester_workspace', label: 'Testing Queue Module', group: 'Testing Module', icon: CheckSquare, desc: 'QA testing queue & defect reporting' },
+    { key: 'tester_workspace', label: 'Testing Queue', group: 'Testing Module', icon: CheckSquare, desc: 'QA testing queue & defect reporting' },
 
-    { key: 'user_accounts', label: 'User Accounts Console', group: 'Administration', icon: UserCheck, desc: 'Create user accounts & enable/disable access' },
-    { key: 'user_roles', label: 'User Roles & Permissions', group: 'Administration', icon: Shield, desc: 'Configure feature permissions & custom roles' },
-    { key: 'settings', label: 'Workspace Settings', group: 'General', icon: Settings, desc: 'Edit profile & enter manager access codes' }
+    { key: 'user_accounts', label: 'User Accounts', group: 'Administration', icon: UserCheck, desc: 'Create user accounts & enable/disable access' },
+    { key: 'user_roles', label: 'User Roles', group: 'Administration', icon: Shield, desc: 'Configure feature permissions & custom roles' },
+    { key: 'settings', label: 'Settings (Enter Code)', group: 'General', icon: Settings, desc: 'Edit profile & enter manager access codes' }
   ];
+
+  const getHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const companyId = currentUser?.companyId || localStorage.getItem('standupflow_company_id');
+    if (companyId) {
+      headers['X-Company-Id'] = companyId;
+    }
+    return headers;
+  };
 
   const fetchRoles = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/roles`);
+      const res = await fetch(`${API_BASE_URL}/roles`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         setRoles(data);
-        if (data.length > 0 && !selectedRoleCode) {
-          setSelectedRoleCode(data[0].roleCode);
+        const customs = data.filter(r => !r.isSystem && Number(r.roleCode) > 4);
+        if (customs.length > 0) {
+          if (!selectedRoleCode || !customs.some(r => r.roleCode === selectedRoleCode)) {
+            setSelectedRoleCode(customs[0].roleCode);
+          }
+        } else {
+          setSelectedRoleCode(null);
         }
       }
     } catch (err) {
@@ -81,7 +99,8 @@ export const UserRolesView = () => {
     fetchRoles();
   }, [API_BASE_URL]);
 
-  const activeRole = roles.find(r => r.roleCode === selectedRoleCode) || roles[0];
+  const customRoles = roles.filter(r => !r.isSystem && Number(r.roleCode) > 4);
+  const activeRole = customRoles.find(r => r.roleCode === selectedRoleCode);
 
   useEffect(() => {
     if (activeRole) {
@@ -106,10 +125,17 @@ export const UserRolesView = () => {
 
   const handleSaveRole = async () => {
     if (!activeRole) return;
+    if (!roleName.trim()) {
+      setSaveError("Role name cannot be empty.");
+      return;
+    }
+
+    setSaveError(null);
+    setIsSaving(true);
     try {
       const res = await fetch(`${API_BASE_URL}/roles/${activeRole.roleCode}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           roleName: roleName.trim(),
           description: description.trim(),
@@ -120,22 +146,35 @@ export const UserRolesView = () => {
       if (res.ok) {
         setSavedMessage(true);
         setTimeout(() => setSavedMessage(false), 3000);
-        fetchRoles();
+        await fetchRoles();
+        if (fetchRolesPermissions) fetchRolesPermissions();
+      } else {
+        const errText = await res.text();
+        setSaveError(errText || "Failed to update role.");
       }
     } catch (err) {
       console.error(err);
+      setSaveError("Server connection error.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleCreateRole = async (e) => {
     e.preventDefault();
-    if (!newRoleName) return;
+    if (!newRoleName.trim()) {
+      setModalError("Role name is required.");
+      return;
+    }
+
+    setModalError(null);
+    setIsCreating(true);
 
     try {
-      const defaultPerms = JSON.stringify(["dashboard", "projects", "team_members", "chat", "tasks_kanban", "tasks_table", "issues", "settings"]);
+      const defaultPerms = JSON.stringify(allFeatures.map(f => f.key));
       const res = await fetch(`${API_BASE_URL}/roles/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           roleName: newRoleName.trim(),
           description: newDescription.trim(),
@@ -148,11 +187,18 @@ export const UserRolesView = () => {
         setIsNewModalOpen(false);
         setNewRoleName('');
         setNewDescription('');
-        fetchRoles();
+        await fetchRoles();
+        if (fetchRolesPermissions) fetchRolesPermissions();
         setSelectedRoleCode(created.roleCode);
+      } else {
+        const errText = await res.text();
+        setModalError(errText || "Failed to create custom role.");
       }
     } catch (err) {
       console.error(err);
+      setModalError("Server error while creating role.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -160,11 +206,13 @@ export const UserRolesView = () => {
     if (!window.confirm("Are you sure you want to delete this custom role?")) return;
     try {
       const res = await fetch(`${API_BASE_URL}/roles/${roleCode}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeaders()
       });
       if (res.ok) {
-        setSelectedRoleCode(1);
-        fetchRoles();
+        setSelectedRoleCode(null);
+        await fetchRoles();
+        if (fetchRolesPermissions) fetchRolesPermissions();
       }
     } catch (err) {
       console.error(err);
@@ -183,8 +231,8 @@ export const UserRolesView = () => {
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">User Roles & Feature Access Control</h1>
-            <p className="text-xs text-slate-500">Configure role-based access permissions, enable/disable sidebar menus, and define custom role capabilities</p>
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Custom User Roles & Feature Permissions</h1>
+            <p className="text-xs text-slate-500">Create custom organizational roles and configure specific feature access permissions</p>
           </div>
         </div>
 
@@ -193,42 +241,37 @@ export const UserRolesView = () => {
           className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Create Custom Role</span>
+          <span>Create Custom Role</span>
         </button>
       </div>
 
       {/* Main Container */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Column: Roles Selection Tabs */}
+        {/* Left Column: Custom Roles Selection Tabs */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-            Workspace Roles ({roles.length})
+            Custom Roles ({customRoles.length})
           </div>
 
-          <div className="space-y-1.5">
-            {roles.map((r) => {
-              const isSelected = r.roleCode === selectedRoleCode;
-              return (
-                <div
-                  key={r.roleCode}
-                  onClick={() => setSelectedRoleCode(r.roleCode)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                    isSelected
-                      ? 'bg-amber-50/80 border-amber-400 text-amber-900 font-bold shadow-xs'
-                      : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium'
-                  }`}
-                >
-                  <div className="truncate pr-2">
-                    <div className="text-xs truncate flex items-center space-x-1.5">
-                      <span>{r.roleName}</span>
-                      {r.isSystem && (
-                        <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded font-mono">System</span>
-                      )}
+          {customRoles.length > 0 ? (
+            <div className="space-y-1.5">
+              {customRoles.map((r) => {
+                const isSelected = r.roleCode === selectedRoleCode;
+                return (
+                  <div
+                    key={r.roleCode}
+                    onClick={() => setSelectedRoleCode(r.roleCode)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-amber-50/80 border-amber-400 text-amber-900 font-bold shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium'
+                    }`}
+                  >
+                    <div className="truncate pr-2">
+                      <div className="text-xs truncate font-bold">{r.roleName}</div>
+                      <div className="text-[10px] text-slate-400 truncate mt-0.5">{r.description || 'Custom Role'}</div>
                     </div>
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">{r.description || 'Custom User Role'}</div>
-                  </div>
 
-                  {!r.isSystem && r.roleCode > 4 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -239,11 +282,16 @@ export const UserRolesView = () => {
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
+              <div className="text-xs font-semibold text-slate-600">No Custom Roles</div>
+              <p className="text-[11px] text-slate-400 leading-snug">Click 'Create Custom Role' above to define new roles.</p>
+            </div>
+          )}
         </div>
 
         {/* Right 3 Columns: Feature Matrix & Permission Controls */}
@@ -256,10 +304,10 @@ export const UserRolesView = () => {
                   <div className="flex items-center space-x-2">
                     <input
                       type="text"
-                      disabled={activeRole.isSystem}
                       value={roleName}
                       onChange={(e) => setRoleName(e.target.value)}
-                      className="text-base font-bold text-slate-900 bg-transparent border-b border-transparent focus:border-amber-500 outline-none"
+                      placeholder="Custom Role Name..."
+                      className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-200 focus:bg-white rounded-lg px-2.5 py-1 focus:border-amber-500 outline-none transition-all"
                     />
                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-mono font-bold rounded">
                       Role Code: {activeRole.roleCode}
@@ -267,11 +315,10 @@ export const UserRolesView = () => {
                   </div>
                   <input
                     type="text"
-                    disabled={activeRole.isSystem}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Role description..."
-                    className="text-xs text-slate-500 bg-transparent w-full border-b border-transparent focus:border-amber-500 outline-none"
+                    placeholder="Role description & permission scope..."
+                    className="text-xs text-slate-600 bg-slate-50 border border-slate-200 focus:bg-white rounded-lg px-2.5 py-1 w-full focus:border-amber-500 outline-none transition-all"
                   />
                 </div>
 
@@ -279,15 +326,30 @@ export const UserRolesView = () => {
                   {savedMessage && (
                     <span className="text-xs text-emerald-600 font-semibold flex items-center space-x-1">
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Permissions Saved!</span>
+                      <span>Permissions & Role Saved!</span>
+                    </span>
+                  )}
+                  {saveError && (
+                    <span className="text-xs text-red-600 font-semibold flex items-center space-x-1">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{saveError}</span>
                     </span>
                   )}
                   <button
+                    onClick={() => handleDeleteRole(activeRole.roleCode)}
+                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl border border-red-200 transition-all flex items-center space-x-1 cursor-pointer"
+                    title="Delete Role"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                  <button
                     onClick={handleSaveRole}
-                    className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+                    disabled={isSaving}
+                    className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Save Role Permissions</span>
+                    <span>{isSaving ? 'Saving...' : 'Save Role Permissions'}</span>
                   </button>
                 </div>
               </div>
@@ -348,8 +410,23 @@ export const UserRolesView = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-400 text-xs">
-              Select a role from the left menu to configure permissions.
+            <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-4 shadow-2xs">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">No Custom User Role Selected</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Default system roles (Company Administrator, Engineering Manager, Software Engineer, QA / Tester) have fixed governance permissions. Create custom roles to grant tailored access for team members.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsNewModalOpen(true)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-all inline-flex items-center space-x-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Custom Role</span>
+              </button>
             </div>
           )}
         </div>
@@ -367,6 +444,12 @@ export const UserRolesView = () => {
               <button onClick={() => setIsNewModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
             </div>
 
+            {modalError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
+                {modalError}
+              </div>
+            )}
+
             <form onSubmit={handleCreateRole} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Role Name *</label>
@@ -376,7 +459,7 @@ export const UserRolesView = () => {
                   placeholder="e.g., DevOps Lead, Product Owner"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-amber-500 font-semibold"
                 />
               </div>
 
@@ -401,9 +484,10 @@ export const UserRolesView = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-xs"
+                  disabled={isCreating}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs"
                 >
-                  Create Role
+                  {isCreating ? 'Creating...' : 'Create Role'}
                 </button>
               </div>
             </form>

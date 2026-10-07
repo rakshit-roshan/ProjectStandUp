@@ -57,7 +57,7 @@ public class AuthController {
             );
 
             // 2. Construct Admin User object matching tblUser_details schema
-            String adminUserId = "900" + reg.getCompanyId();
+            String adminUserId = "1";
             User rootUser = new User(
                     adminUserId,
                     "root", // Fixed username for registrant

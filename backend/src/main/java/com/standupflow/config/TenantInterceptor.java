@@ -56,8 +56,10 @@ public class TenantInterceptor extends OncePerRequestFilter {
             }
 
             TenantContext.setTenant(reg.getCompanyId(), reg.getDatabaseName());
+            System.out.println("[TenantInterceptor] Set tenant context -> Company: " + reg.getCompanyId() + " | DB: " + reg.getDatabaseName() + " for request: " + path);
         } else {
             TenantContext.clear();
+            System.out.println("[TenantInterceptor] No X-Company-Id header provided for request: " + path + " (Defaulting to master db standupflow_db)");
         }
 
         try {

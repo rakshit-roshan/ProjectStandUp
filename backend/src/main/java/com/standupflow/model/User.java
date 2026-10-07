@@ -34,15 +34,22 @@ public class User {
 
     private String department;
 
+    @Column(name = "has_completed_tour")
     private Boolean hasCompletedTour = false;
 
+    @Column(name = "manager_code")
     private String managerCode; 
+
+    @Column(name = "company_id")
     private String companyId;
 
+    @Column(name = "created_datetime")
     private String createdDatetime = LocalDateTime.now().toString();
+
+    @Column(name = "modified_datetime")
     private String modifiedDatetime = LocalDateTime.now().toString();
 
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(name = "password_history", columnDefinition = "LONGTEXT")
     private String passwordHistory;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
@@ -110,7 +117,15 @@ public class User {
     public String getId() { return id; }
     public void setId(String id) { 
         this.id = id; 
-        if (this.metrics != null) this.metrics.setUserId(id);
+        if (this.metrics != null && id != null) this.metrics.setUserId(id);
+    }
+    public void setId(Long id) {
+        this.id = id != null ? id.toString() : null;
+        if (this.metrics != null && this.id != null) this.metrics.setUserId(this.id);
+    }
+    public void setId(Object id) {
+        this.id = id != null ? id.toString() : null;
+        if (this.metrics != null && this.id != null) this.metrics.setUserId(this.id);
     }
 
     public String getUsername() { return username; }
@@ -144,7 +159,7 @@ public class User {
         if (role == 2) return "MANAGER";
         if (role == 3) return "DEVELOPER";
         if (role == 4) return "TESTER";
-        return "DEVELOPER";
+        return String.valueOf(role);
     }
 
     public void setRole(Object roleInput) {

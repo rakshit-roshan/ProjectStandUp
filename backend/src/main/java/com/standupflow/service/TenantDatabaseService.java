@@ -51,8 +51,8 @@ public class TenantDatabaseService {
         String companyId = String.valueOf(numericCompanyId);
         String databaseName = "standupflow_db_" + companyId;
 
-        // Purely numeric admin user ID (e.g., 90084920153)
-        String rootUserId = "900" + companyId;
+        // Primary root admin user ID starts at 1
+        String rootUserId = "1";
 
         CompanyRegistration registration = new CompanyRegistration(
                 companyId,
@@ -140,7 +140,8 @@ public class TenantDatabaseService {
                         "role INT DEFAULT 1, " +
                         "created_datetime DATETIME" +
                         ");");
-                System.out.println("[TenantDatabaseService] Verified tblOrg_details table in master database (standupflow_db).");
+
+                System.out.println("[TenantDatabaseService] Verified master database (standupflow_db) table (tblOrg_details).");
             }
         } catch (Exception e) {
             System.err.println("[TenantDatabaseService] Master table initialization note: " + e.getMessage());
@@ -213,7 +214,12 @@ public class TenantDatabaseService {
                     "modified_datetime VARCHAR(100)" +
                     ");");
 
-            // Table: tblRole_permissions
+            // Clean up legacy duplicate table if present
+            try {
+                stmt.executeUpdate("DROP TABLE IF EXISTS tbl_role_permissions;");
+            } catch (Exception ignored) {}
+
+            // Table: tblRole_permissions (Role-Based Access Control)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS tblRole_permissions (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                     "role_code INT UNIQUE NOT NULL, " +
@@ -224,12 +230,15 @@ public class TenantDatabaseService {
                     "created_datetime VARCHAR(100)" +
                     ");");
 
-            // Seed default system roles if not present
-            stmt.executeUpdate("INSERT IGNORE INTO tblRole_permissions (role_code, role_name, description, permissions_json, is_system, created_datetime) VALUES " +
-                    "(1, 'Company Administrator', 'Primary organization administrator with full governance access.', '[\"dashboard\",\"projects\",\"team_members\",\"chat\",\"tasks_kanban\",\"tasks_table\",\"issues\",\"monitor\",\"employee_health\",\"sprints\",\"reports\",\"performance_review\",\"tester_workspace\",\"user_accounts\",\"user_roles\",\"settings\"]', true, NOW()), " +
-                    "(2, 'Engineering Manager', 'Team lead managing sprints, burndowns, reports, and appraisal reviews.', '[\"dashboard\",\"projects\",\"team_members\",\"chat\",\"tasks_kanban\",\"tasks_table\",\"issues\",\"monitor\",\"employee_health\",\"sprints\",\"reports\",\"performance_review\",\"settings\"]', true, NOW()), " +
-                    "(3, 'Software Engineer', 'Core developer working on assigned tasks, Kanban boards, and sprint backlog.', '[\"dashboard\",\"projects\",\"team_members\",\"chat\",\"tasks_kanban\",\"tasks_table\",\"issues\",\"monitor\",\"employee_health\",\"sprints\",\"settings\"]', true, NOW()), " +
-                    "(4, 'QA / Tester', 'Quality assurance engineer executing test suites and logging defect reports.', '[\"dashboard\",\"team_members\",\"chat\",\"issues\",\"tester_workspace\",\"settings\"]', true, NOW());");
+            // Seed default system role (Company Administrator only) if not present
+            String seedTenantRoles = " (1, 'Company Administrator', 'Primary organization administrator with full governance access.', '[\"dashboard\",\"projects\",\"team_members\",\"chat\",\"tasks_kanban\",\"tasks_table\",\"issues\",\"monitor\",\"employee_health\",\"sprints\",\"reports\",\"performance_review\",\"tester_workspace\",\"user_accounts\",\"user_roles\",\"settings\"]', true, NOW());";
+
+            stmt.executeUpdate("INSERT IGNORE INTO tblRole_permissions (role_code, role_name, description, permissions_json, is_system, created_datetime) VALUES" + seedTenantRoles);
+
+            // Clean up default roles 2, 3, 4 from tblRole_permissions except Company Administrator (role_code 1)
+            try {
+                stmt.executeUpdate("DELETE FROM tblRole_permissions WHERE role_code IN (2, 3, 4);");
+            } catch (Exception ignored) {}
 
             // Table: projects
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS projects (" +

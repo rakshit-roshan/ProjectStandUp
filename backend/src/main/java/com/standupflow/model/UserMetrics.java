@@ -15,14 +15,29 @@ public class UserMetrics {
     private String userId;
 
     private String workload = "Balanced";
+
+    @Column(name = "assigned_tasks_count")
     private Integer assignedTasksCount = 0;
+
+    @Column(name = "completed_tasks_count")
     private Integer completedTasksCount = 0;
+
+    @Column(name = "pending_reviews_count")
     private Integer pendingReviewsCount = 0;
+
+    @Column(name = "logged_hours_this_week")
     private Double loggedHoursThisWeek = 0.0;
+
+    @Column(name = "on_time_delivery_rate")
     private Integer onTimeDeliveryRate = 100;
+
+    @Column(name = "reopened_bugs_count")
     private Integer reopenedBugsCount = 0;
+
+    @Column(name = "is_online")
     private Boolean isOnline = false;
 
+    @Column(name = "modified_datetime")
     private String modifiedDatetime = LocalDateTime.now().toString();
 
     public UserMetrics() {}
@@ -58,6 +73,8 @@ public class UserMetrics {
 
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+    public void setUserId(Long userId) { this.userId = userId != null ? userId.toString() : null; }
+    public void setUserId(Object userId) { this.userId = userId != null ? userId.toString() : null; }
 
     public String getWorkload() { return workload; }
     public void setWorkload(String workload) { this.workload = workload; }

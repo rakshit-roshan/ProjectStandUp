@@ -13,18 +13,25 @@ public class Project {
     @Column(length = 1000)
     private String description;
     private String status; // On Track, At Risk, Delayed
+    @Column(name = "sprint_completion")
     private Integer sprintCompletion;
+    @Column(name = "total_tasks")
     private Integer totalTasks;
+    @Column(name = "completed_tasks")
     private Integer completedTasks;
+    @Column(name = "open_issues")
     private Integer openIssues;
+    @Column(name = "overdue_tasks")
     private Integer overdueTasks;
     private String lead;
+    @Column(name = "lead_id")
     private String leadId;
     private String color;
+    @Column(name = "invite_code")
     private String inviteCode;
-    @Column(length = 2000)
+    @Column(name = "member_emails", length = 2000)
     private String memberEmails;
-    @Column(length = 2000)
+    @Column(name = "member_ids", length = 2000)
     private String memberIds;
 
     public Project() {}

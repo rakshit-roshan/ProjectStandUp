@@ -10,13 +10,18 @@ public class Notification {
 
     @Id
     private String id;
+    @Column(name = "user_id")
     private String userId;
+    @Column(name = "user_email")
     private String userEmail;
     private String title;
     @Column(length = 1000)
     private String message;
+    @Column(name = "reporter_name")
     private String reporterName;
+    @Column(name = "link_task_id")
     private String linkTaskId;
+    @Column(name = "is_read")
     private Boolean isRead = false;
     private String timestamp;
 

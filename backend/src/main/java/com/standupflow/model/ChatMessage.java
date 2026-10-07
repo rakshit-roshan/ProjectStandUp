@@ -12,26 +12,34 @@ public class ChatMessage {
 
     @Id
     private String id;
+    @Column(name = "sender_id")
     private String senderId;
+    @Column(name = "sender_name")
     private String senderName;
+    @Column(name = "sender_avatar")
     private String senderAvatar;
+    @Column(name = "recipient_id")
     private String recipientId; // For 1-on-1 direct messages
+    @Column(name = "channel_id")
     private String channelId;   // For group channels (e.g., #general, #dev-team)
     
     @Column(length = 4000)
     private String content;
 
-    @Column(length = 4000)
+    @Column(name = "attachments_json", length = 4000)
     private String attachmentsJson; // JSON array of attachment objects {id, name, size, type, url}
 
     @Transient
     private List<Object> attachments;
 
     private String timestamp;
+    @Column(name = "reactions_json")
     private String reactionsJson;   // JSON array of reaction objects {emoji, count, userIds}
+    @Column(name = "is_read")
     private Boolean isRead = false;
 
     @JsonProperty("isDeleted")
+    @Column(name = "is_deleted")
     private Boolean isDeleted = false;
 
     public ChatMessage() {}
