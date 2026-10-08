@@ -156,15 +156,12 @@ public class User {
 
     public String getRole() {
         if (role == null || role == 1) return "ADMIN";
-        if (role == 2) return "MANAGER";
-        if (role == 3) return "DEVELOPER";
-        if (role == 4) return "TESTER";
         return String.valueOf(role);
     }
 
     public void setRole(Object roleInput) {
         if (roleInput == null) {
-            this.role = 3;
+            this.role = 1;
             return;
         }
         if (roleInput instanceof Number) {
@@ -184,7 +181,7 @@ public class User {
             try {
                 this.role = Integer.parseInt(str);
             } catch (Exception e) {
-                this.role = 3;
+                this.role = 1;
             }
         }
     }

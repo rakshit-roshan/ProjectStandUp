@@ -42,6 +42,32 @@ public class TenantDatabaseService {
         }
     }
 
+    public Optional<CompanyRegistration> findCompanyRegistrationByIdOrEmail(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) return Optional.empty();
+        String cleanInput = identifier.trim().replace("'", "''");
+        ensureMasterTableExists();
+        try (Connection conn = getDirectConnection("standupflow_db");
+             Statement stmt = conn.createStatement();
+             java.sql.ResultSet rs = stmt.executeQuery(
+                     "SELECT company_id, company_name, full_name, root_user_email, department, role FROM tblOrg_details WHERE company_id = '" + cleanInput + "' OR root_user_email = '" + cleanInput + "' LIMIT 1"
+             )) {
+            if (rs.next()) {
+                CompanyRegistration reg = new CompanyRegistration(
+                        rs.getString("company_id"),
+                        rs.getString("company_name"),
+                        rs.getString("full_name"),
+                        rs.getString("root_user_email"),
+                        rs.getString("department"),
+                        rs.getInt("role")
+                );
+                return Optional.of(reg);
+            }
+        } catch (Exception e) {
+            System.err.println("[TenantDatabaseService] Direct JDBC lookup note: " + e.getMessage());
+        }
+        return companyRegistrationRepository.findByCompanyId(cleanInput).or(() -> companyRegistrationRepository.findByRootUserEmail(cleanInput));
+    }
+
     public CompanyRegistration createNewCompanyRegistration(String companyName, String rootName, String rootEmail, String password, String department) throws Exception {
         // 0. Ensure master database (standupflow_db) contains tblOrg_details
         ensureMasterTableExists();
@@ -83,7 +109,7 @@ public class TenantDatabaseService {
         try (Connection conn = getDirectConnection("standupflow_db");
              Statement stmt = conn.createStatement()) {
             String sql = String.format(
-                    "INSERT INTO tblOrg_details (company_id, company_name, root_user_name, root_user_email, department, role, created_datetime) " +
+                    "INSERT INTO tblOrg_details (company_id, company_name, full_name, root_user_email, department, role, created_datetime) " +
                     "VALUES ('%s', '%s', '%s', '%s', '%s', %d, NOW());",
                     reg.getCompanyId(),
                     reg.getCompanyName().replace("'", "''"),
@@ -134,7 +160,7 @@ public class TenantDatabaseService {
                         "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                         "company_id VARCHAR(255) UNIQUE NOT NULL, " +
                         "company_name VARCHAR(255) NOT NULL, " +
-                        "root_user_name VARCHAR(255) NOT NULL, " +
+                        "full_name VARCHAR(255) NOT NULL, " +
                         "root_user_email VARCHAR(255) UNIQUE NOT NULL, " +
                         "department VARCHAR(255), " +
                         "role INT DEFAULT 1, " +
@@ -380,12 +406,13 @@ public class TenantDatabaseService {
         String managerCode = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 999999));
         String nowStr = LocalDateTime.now().toString();
 
+        String usernameVal = "root";
         try (Connection conn = getDirectConnection(databaseName);
              Statement stmt = conn.createStatement()) {
             String sqlUser = String.format(
                     "INSERT INTO tblUser_details (id, username, fullname, emailid, userpassword, role, rootadmin, enable, avatar, department, has_completed_tour, manager_code, company_id, created_datetime, modified_datetime, password_history) " +
-                    "VALUES ('%s', 'root', '%s', '%s', '%s', 1, 1, 1, '%s', '%s', false, '%s', '%s', '%s', '%s', '');",
-                    rootUserId, rootName.replace("'", "''"), rootEmail.replace("'", "''"), password.replace("'", "''"), avatar, department.replace("'", "''"), managerCode, companyId, nowStr, nowStr
+                    "VALUES ('%s', '%s', '%s', '%s', '%s', 1, 1, 1, '%s', '%s', false, '%s', '%s', '%s', '%s', '');",
+                    rootUserId, usernameVal, rootName.replace("'", "''"), rootEmail.replace("'", "''"), password.replace("'", "''"), avatar, department.replace("'", "''"), managerCode, companyId, nowStr, nowStr
             );
             stmt.executeUpdate(sqlUser);
 

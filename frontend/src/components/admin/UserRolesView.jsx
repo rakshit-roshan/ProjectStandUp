@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const UserRolesView = () => {
-  const { currentUser, API_BASE_URL, fetchRolesPermissions } = useApp();
+  const { users, setUsers, fetchUsers, currentUser, API_BASE_URL, fetchRolesPermissions } = useApp();
   const [roles, setRoles] = useState([]);
   const [selectedRoleCode, setSelectedRoleCode] = useState(1);
   const [permissions, setPermissions] = useState([]);
@@ -42,6 +42,13 @@ export const UserRolesView = () => {
   const [newDescription, setNewDescription] = useState('');
   const [modalError, setModalError] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Delete Role & Reassign State
+  const [deleteTargetRole, setDeleteTargetRole] = useState(null);
+  const [assignedUsersForDelete, setAssignedUsersForDelete] = useState([]);
+  const [replacementRoleCode, setReplacementRoleCode] = useState(1);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const allFeatures = [
     { key: 'dashboard', label: 'Home', group: 'Workspace', icon: Layers, desc: 'Access primary overview dashboard' },
@@ -202,20 +209,64 @@ export const UserRolesView = () => {
     }
   };
 
-  const handleDeleteRole = async (roleCode) => {
-    if (!window.confirm("Are you sure you want to delete this custom role?")) return;
+  const initiateDeleteRole = (roleToDel) => {
+    if (!roleToDel) return;
+    setDeleteError(null);
+    const affectedUsers = (users || []).filter(u => {
+      const uRoleCode = Number(u.roleCode !== undefined && u.roleCode !== null ? u.roleCode : (u.role === 'ADMIN' ? 1 : (u.role || 1)));
+      return uRoleCode === Number(roleToDel.roleCode);
+    });
+    setAssignedUsersForDelete(affectedUsers);
+
+    // Pick default replacement role (Company Admin [1] or first available remaining role)
+    const remainingRoles = roles.filter(r => Number(r.roleCode) !== Number(roleToDel.roleCode));
+    const defaultReplacement = remainingRoles.length > 0 ? Number(remainingRoles[0].roleCode) : 1;
+    setReplacementRoleCode(defaultReplacement);
+
+    setDeleteTargetRole(roleToDel);
+  };
+
+  const handleConfirmDeleteRole = async () => {
+    if (!deleteTargetRole) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+
     try {
-      const res = await fetch(`${API_BASE_URL}/roles/${roleCode}`, {
+      // Step 1: Reassign all affected user accounts to replacementRoleCode first!
+      if (assignedUsersForDelete.length > 0) {
+        for (const usr of assignedUsersForDelete) {
+          const res = await fetch(`${API_BASE_URL}/users/${usr.id}/update-role`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ role: replacementRoleCode, roleCode: replacementRoleCode })
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to reassign role for user ${usr.fullname || usr.name}`);
+          }
+        }
+        if (fetchUsers) await fetchUsers();
+      }
+
+      // Step 2: Delete the custom role from backend
+      const deleteRes = await fetch(`${API_BASE_URL}/roles/${deleteTargetRole.roleCode}`, {
         method: 'DELETE',
         headers: getHeaders()
       });
-      if (res.ok) {
+
+      if (deleteRes.ok) {
+        setDeleteTargetRole(null);
         setSelectedRoleCode(null);
         await fetchRoles();
         if (fetchRolesPermissions) fetchRolesPermissions();
+      } else {
+        const errTxt = await deleteRes.text();
+        setDeleteError(errTxt || "Failed to delete role.");
       }
     } catch (err) {
       console.error(err);
+      setDeleteError(err.message || "Error occurred while reassigning users and deleting role.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -275,9 +326,9 @@ export const UserRolesView = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteRole(r.roleCode);
+                        initiateDeleteRole(r);
                       }}
-                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
                       title="Delete Custom Role"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -336,7 +387,7 @@ export const UserRolesView = () => {
                     </span>
                   )}
                   <button
-                    onClick={() => handleDeleteRole(activeRole.roleCode)}
+                    onClick={() => initiateDeleteRole(activeRole)}
                     className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl border border-red-200 transition-all flex items-center space-x-1 cursor-pointer"
                     title="Delete Role"
                   >
@@ -491,6 +542,98 @@ export const UserRolesView = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete / Reassign Role Confirmation Modal */}
+      {deleteTargetRole && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-red-600">
+                <Trash2 className="w-5 h-5" />
+                <h2 className="font-bold text-slate-900 text-sm">
+                  {assignedUsersForDelete.length > 0 ? 'Role Currently Assigned - Reassign Required' : 'Delete Custom Role'}
+                </h2>
+              </div>
+              <button onClick={() => setDeleteTargetRole(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer">✕</button>
+            </div>
+
+            {deleteError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
+                {deleteError}
+              </div>
+            )}
+
+            {assignedUsersForDelete.length > 0 ? (
+              /* Case B: Role IS assigned to 1 or more user accounts */
+              <div className="space-y-4 text-xs">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                  <div className="font-bold text-amber-900 flex items-center space-x-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Role '{deleteTargetRole.roleName}' is assigned to {assignedUsersForDelete.length} user account(s)</span>
+                  </div>
+                  <div className="text-[11px] text-amber-800 font-medium">
+                    Users: {assignedUsersForDelete.map(u => u.fullname || u.name || u.username).join(', ')}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Assign role to all the Users of role <strong className="text-slate-900 font-bold">{deleteTargetRole.roleName}</strong>:
+                  </label>
+                  <select
+                    value={replacementRoleCode}
+                    onChange={(e) => setReplacementRoleCode(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer shadow-2xs"
+                  >
+                    {roles
+                      .filter(r => Number(r.roleCode) !== Number(deleteTargetRole.roleCode))
+                      .map(r => (
+                        <option key={r.roleCode} value={r.roleCode}>
+                          {r.roleName}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              /* Case A: Role is NOT assigned to any user account */
+              <div className="space-y-2 text-xs text-slate-600">
+                <p>
+                  Are you sure you want to delete the custom role <strong className="text-slate-900">"{deleteTargetRole.roleName}"</strong>?
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  No user accounts are currently assigned to this role. This action cannot be undone.
+                </p>
+              </div>
+            )}
+
+            <div className="pt-3 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetRole(null)}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteRole}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  {isDeleting
+                    ? 'Processing...'
+                    : assignedUsersForDelete.length > 0
+                    ? 'Reassign Users & Delete Role'
+                    : 'Delete Role'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

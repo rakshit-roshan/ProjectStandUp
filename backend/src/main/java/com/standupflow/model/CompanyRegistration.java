@@ -17,7 +17,7 @@ public class CompanyRegistration {
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
-    @Column(name = "root_user_name", nullable = false)
+    @Column(name = "full_name", nullable = false)
     private String rootUserName;
 
     @Column(name = "root_user_email", unique = true, nullable = false)
@@ -80,10 +80,7 @@ public class CompanyRegistration {
 
     public String getRole() {
         if (role == null || role == 1) return "ADMIN";
-        if (role == 2) return "MANAGER";
-        if (role == 3) return "DEVELOPER";
-        if (role == 4) return "TESTER";
-        return "ADMIN";
+        return String.valueOf(role);
     }
 
     public void setRole(Object roleInput) {
@@ -98,12 +95,6 @@ public class CompanyRegistration {
         String str = roleInput.toString().trim();
         if ("1".equals(str) || "ADMIN".equalsIgnoreCase(str) || "ROOT".equalsIgnoreCase(str)) {
             this.role = 1;
-        } else if ("2".equals(str) || "MANAGER".equalsIgnoreCase(str)) {
-            this.role = 2;
-        } else if ("3".equals(str) || "DEVELOPER".equalsIgnoreCase(str)) {
-            this.role = 3;
-        } else if ("4".equals(str) || "TESTER".equalsIgnoreCase(str)) {
-            this.role = 4;
         } else {
             try { this.role = Integer.parseInt(str); } catch (Exception e) { this.role = 1; }
         }

@@ -11,15 +11,21 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
 
-    @Query(value = "SELECT * FROM tblUser_details WHERE emailid = :email LIMIT 1", nativeQuery = true)
-    Optional<User> findByEmail(@Param("email") String emailid);
+    Optional<User> findByEmailid(String emailid);
 
-    @Query(value = "SELECT * FROM tblUser_details WHERE emailid = :email LIMIT 1", nativeQuery = true)
-    Optional<User> findByEmailid(@Param("email") String emailid);
+    Optional<User> findByUsername(String username);
 
-    @Query(value = "SELECT * FROM tblUser_details WHERE username = :username LIMIT 1", nativeQuery = true)
-    Optional<User> findByUsername(@Param("username") String username);
+    Optional<User> findByUsernameOrEmailidOrFullname(String username, String emailid, String fullname);
 
-    @Query(value = "SELECT * FROM tblUser_details WHERE emailid = :identifier OR username = :identifier LIMIT 1", nativeQuery = true)
-    Optional<User> findByEmailOrName(@Param("identifier") String identifier);
+    default Optional<User> findByUsernameOrEmailOrFullname(String identifier) {
+        return findByUsernameOrEmailidOrFullname(identifier, identifier, identifier);
+    }
+
+    default Optional<User> findByEmailOrName(String identifier) {
+        return findByUsernameOrEmailidOrFullname(identifier, identifier, identifier);
+    }
+
+    default Optional<User> findByEmail(String emailid) {
+        return findByEmailid(emailid);
+    }
 }

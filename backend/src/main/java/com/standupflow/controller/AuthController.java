@@ -82,56 +82,75 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        String identifier = request.getEmail() != null ? request.getEmail().trim() : "";
-        if (identifier.isEmpty()) {
-            return ResponseEntity.badRequest().body(new AuthResponse(false, "Email address or Username is required", null));
+        String companyIdentifier = request.getCompanyIdentifier() != null ? request.getCompanyIdentifier().trim() : "";
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
+        String password = request.getPassword() != null ? request.getPassword().trim() : "";
+
+        if (companyIdentifier.isEmpty()) {
+            return ResponseEntity.badRequest().body(new AuthResponse(false, "Company ID or Admin Email is required", null));
+        }
+        if (username.isEmpty()) {
+            return ResponseEntity.badRequest().body(new AuthResponse(false, "Username is required", null));
+        }
+        if (password.isEmpty()) {
+            return ResponseEntity.badRequest().body(new AuthResponse(false, "Password is required", null));
         }
 
-        // 1. Search by Email in master tblOrg_details table
-        Optional<CompanyRegistration> regOpt = companyRegistrationRepository.findByRootUserEmail(identifier);
-        if (regOpt.isPresent()) {
-            CompanyRegistration reg = regOpt.get();
-            TenantContext.setTenant(reg.getCompanyId(), reg.getDatabaseName());
+        // 1. Check in master standupflow_db (tblOrg_details) via direct JDBC so thread dataSource context switches cleanly
+        Optional<CompanyRegistration> regOpt = tenantDatabaseService.findCompanyRegistrationByIdOrEmail(companyIdentifier);
 
-            Optional<User> userOpt = userRepository.findByEmailOrName(identifier);
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                if (user.getEnable() != null && user.getEnable() == 0) {
-                    return ResponseEntity.status(401).body(new AuthResponse(false, "Your user account is temporarily disabled by the workspace Administrator.", null));
-                }
-                if (user.getPassword() != null && user.getPassword().equals(request.getPassword())) {
+        if (regOpt.isEmpty()) {
+            return ResponseEntity.status(401).body(new AuthResponse(false, "Company workspace or Admin Email '" + companyIdentifier + "' not found in system.", null));
+        }
+
+        CompanyRegistration reg = regOpt.get();
+        String targetCompanyId = reg.getCompanyId();
+        String targetDbName = reg.getDatabaseName();
+
+        // 2. Set tenant context to standupflow_db_<companyId>
+        TenantContext.setTenant(targetCompanyId, targetDbName);
+
+        try {
+            // 3. Query tblUser_details table in standupflow_db_<companyId> database
+            Optional<User> userOpt = userRepository.findByUsernameOrEmailOrFullname(username);
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByUsername(username);
+            }
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByEmail(username);
+            }
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByEmailOrName(username);
+            }
+            // Fallback for root admin logging in with admin email
+            if (userOpt.isEmpty() && reg.getRootUserEmail() != null && reg.getRootUserEmail().equalsIgnoreCase(companyIdentifier)) {
+                userOpt = userRepository.findById("1");
+            }
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(401).body(new AuthResponse(false, "User '" + username + "' does not exist in workspace database for Company ID '" + targetCompanyId + "'", null));
+            }
+
+            User user = userOpt.get();
+            if (user.getEnable() != null && user.getEnable() == 0) {
+                return ResponseEntity.status(401).body(new AuthResponse(false, "Your user account is temporarily disabled by the workspace Administrator.", null));
+            }
+
+            if (user.getPassword() != null && user.getPassword().equals(password)) {
+                try {
                     user.setIsOnline(true);
-                    user.setCompanyId(reg.getCompanyId());
-                    User savedUser = userRepository.save(user);
-                    return ResponseEntity.ok(new AuthResponse(true, "Login successful", savedUser, reg.getCompanyId(), reg.getDatabaseName()));
+                    user.setCompanyId(targetCompanyId);
+                    userRepository.save(user);
+                } catch (Exception e) {
+                    System.err.println("[AuthController] Warning on updating user online status: " + e.getMessage());
                 }
+                return ResponseEntity.ok(new AuthResponse(true, "Login successful", user, targetCompanyId, targetDbName));
+            } else {
+                return ResponseEntity.status(401).body(new AuthResponse(false, "Invalid password for user '" + username + "'", null));
             }
+        } finally {
+            // Context clean-up managed per thread
         }
-
-        // 2. If companyId provided in request or direct tenant lookup
-        if (request.getCompanyId() != null && !request.getCompanyId().trim().isEmpty()) {
-            Optional<CompanyRegistration> compOpt = companyRegistrationRepository.findByCompanyId(request.getCompanyId().trim());
-            if (compOpt.isPresent()) {
-                CompanyRegistration reg = compOpt.get();
-                TenantContext.setTenant(reg.getCompanyId(), reg.getDatabaseName());
-
-                Optional<User> userOpt = userRepository.findByEmailOrName(identifier);
-                if (userOpt.isPresent()) {
-                    User user = userOpt.get();
-                    if (user.getEnable() != null && user.getEnable() == 0) {
-                        return ResponseEntity.status(401).body(new AuthResponse(false, "Your user account is temporarily disabled by the workspace Administrator.", null));
-                    }
-                    if (user.getPassword() != null && user.getPassword().equals(request.getPassword())) {
-                        user.setIsOnline(true);
-                        user.setCompanyId(reg.getCompanyId());
-                        User savedUser = userRepository.save(user);
-                        return ResponseEntity.ok(new AuthResponse(true, "Login successful", savedUser, reg.getCompanyId(), reg.getDatabaseName()));
-                    }
-                }
-            }
-        }
-
-        return ResponseEntity.status(401).body(new AuthResponse(false, "Invalid email/username or password", null));
     }
 
     @PostMapping("/logout/{userId}")

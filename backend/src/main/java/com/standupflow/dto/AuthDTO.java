@@ -5,22 +5,49 @@ import com.standupflow.model.User;
 public class AuthDTO {
 
     public static class LoginRequest {
-        private String email; // Accepts either Email ID or Username
-        private String password;
-        private String companyId;
+        private String companyIdentifier; // Company ID or Admin Email
+        private String username;          // User's Username
+        private String password;          // User's Password
+        private String email;             // Fallback/alias
+        private String companyId;         // Fallback/alias
 
         public LoginRequest() {}
 
-        public LoginRequest(String email, String password, String companyId) {
-            this.email = email;
+        public LoginRequest(String companyIdentifier, String username, String password) {
+            this.companyIdentifier = companyIdentifier;
+            this.username = username;
             this.password = password;
-            this.companyId = companyId;
+        }
+
+        public String getCompanyIdentifier() {
+            if (companyIdentifier != null && !companyIdentifier.trim().isEmpty()) {
+                return companyIdentifier;
+            }
+            if (companyId != null && !companyId.trim().isEmpty()) {
+                return companyId;
+            }
+            return email;
+        }
+
+        public void setCompanyIdentifier(String companyIdentifier) {
+            this.companyIdentifier = companyIdentifier;
+        }
+
+        public String getUsername() {
+            if (username != null && !username.trim().isEmpty()) {
+                return username;
+            }
+            return email;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
         }
 
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
 
-        public String getEmailOrUsername() { return email; }
+        public String getEmailOrUsername() { return getUsername(); }
 
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }

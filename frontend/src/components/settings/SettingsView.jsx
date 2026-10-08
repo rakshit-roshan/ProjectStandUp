@@ -5,18 +5,13 @@ import {
   User,
   Mail,
   Lock,
-  Building,
   Upload,
-  ShieldCheck,
-  Users,
-  Copy,
-  Check,
-  UserPlus,
-  Key,
   Database,
-  Sparkles,
-  AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  AtSign,
+  ShieldCheck,
+  CheckCircle2,
+  Save
 } from 'lucide-react';
 
 const PRESET_AVATARS = [
@@ -31,25 +26,25 @@ const PRESET_AVATARS = [
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 export const SettingsView = () => {
-  const { currentUser, users, updateUserProfile, joinTeamCode, assignMemberByEmail, invitations, sendInvitation } = useApp();
+  const { currentUser, updateUserProfile } = useApp();
 
-  // Profile Edit Local State
-  const [name, setName] = useState(currentUser?.name || '');
-  const [email, setEmail] = useState(currentUser?.email || '');
-  const [password, setPassword] = useState(currentUser?.password || '');
-  const [department, setDepartment] = useState(currentUser?.department || 'Engineering');
+  // Read-only Account Properties
+  const name = currentUser?.name || '';
+  const username = currentUser?.username || (currentUser?.email ? currentUser.email.split('@')[0] : (currentUser?.name ? currentUser.name.toLowerCase().replace(/\s+/g, '.') : 'user'));
+  const email = currentUser?.email || '';
+
+  // Password Edit Local State
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // Avatar Selection State
   const [avatar, setAvatar] = useState(currentUser?.avatar || PRESET_AVATARS[0]);
   const [avatarError, setAvatarError] = useState('');
   const [isImageSelected, setIsImageSelected] = useState(false);
-
-  // Manager & Team Join State
-  const [teamCodeInput, setTeamCodeInput] = useState(currentUser?.managerCode || '');
-  const [assignEmailInput, setAssignEmailInput] = useState('');
   
   // Status Notifications
-  const [copied, setCopied] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
-  const [teamMsg, setTeamMsg] = useState('');
 
   const handleAvatarFileUpload = (e) => {
     const file = e.target.files?.[0];
@@ -71,59 +66,42 @@ export const SettingsView = () => {
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
-    if (avatarError || !isImageSelected) return;
+    if (avatarError) return;
 
-    const res = await updateUserProfile({
-      name,
-      email,
-      password,
-      department,
-      avatar
-    });
+    if (newPassword || confirmPassword) {
+      if (newPassword !== confirmPassword) {
+        setPasswordError('New password and confirm password do not match.');
+        return;
+      }
+      if (newPassword.length < 4) {
+        setPasswordError('Password must be at least 4 characters long.');
+        return;
+      }
+    }
+    setPasswordError('');
+
+    const payload = {};
+    if (newPassword) payload.password = newPassword;
+    if (isImageSelected) payload.avatar = avatar;
+
+    if (Object.keys(payload).length === 0) return;
+
+    const res = await updateUserProfile(payload);
     if (res?.success) {
-      setProfileMsg('Profile updated successfully!');
+      setProfileMsg('Settings saved successfully!');
+      setNewPassword('');
+      setConfirmPassword('');
       setIsImageSelected(false);
       setTimeout(() => setProfileMsg(''), 3000);
-    }
-  };
-
-  const handleJoinTeam = async (e) => {
-    e.preventDefault();
-    if (!teamCodeInput.trim()) return;
-    const res = await joinTeamCode(teamCodeInput);
-    if (res?.success) {
-      setTeamMsg('Joined Manager Team successfully!');
-      setTimeout(() => setTeamMsg(''), 3000);
-    }
-  };
-
-  const handleAssignMember = async (e) => {
-    e.preventDefault();
-    if (!assignEmailInput.trim()) return;
-    const targetEmail = assignEmailInput.trim().toLowerCase();
-    
-    // Send Team Invitation
-    const res = await sendInvitation(targetEmail);
-    if (res?.success) {
-      setTeamMsg(`Team invitation sent to ${targetEmail}!`);
-      setAssignEmailInput('');
-      setTimeout(() => setTeamMsg(''), 3000);
     } else {
-      setTeamMsg(res?.message || 'Failed to send invitation');
+      setPasswordError(res?.message || 'Failed to update settings.');
     }
   };
 
-  const copyManagerCode = () => {
-    if (currentUser?.managerCode) {
-      navigator.clipboard.writeText(currentUser.managerCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  // Team members under current manager's code
-  const myTeamMembers = users.filter(u => u.managerCode && u.managerCode === currentUser?.managerCode && u.id !== currentUser?.id);
-  const myPendingInvites = invitations.filter(i => i.managerCode === currentUser?.managerCode && i.status === 'PENDING');
+  const hasPasswordInput = Boolean(newPassword || confirmPassword);
+  const isPasswordValid = hasPasswordInput ? (newPassword && newPassword === confirmPassword && newPassword.length >= 4) : true;
+  const hasValidChanges = (isImageSelected || (hasPasswordInput && isPasswordValid));
+  const isSaveDisabled = Boolean(avatarError) || !hasValidChanges;
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto text-xs">
@@ -134,23 +112,24 @@ export const SettingsView = () => {
             <Settings className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-slate-900 leading-tight">Profile & Team Settings</h1>
-            <p className="text-xs text-slate-500">Edit your user credentials, profile picture, and Manager Team Hash Code assignments</p>
+            <h1 className="text-base font-bold text-slate-900 leading-tight">Settings</h1>
+            <p className="text-xs text-slate-500">View account details, change profile picture, and update access password</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Edit Profile Options */}
+        {/* Left Column: Account Details & Settings Form */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-6">
           <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
               <User className="w-4 h-4 text-blue-600" />
-              <span>Edit Personal Profile</span>
+              <span>Personal Account & Credentials</span>
             </h2>
             {profileMsg && (
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 animate-in fade-in">
-                {profileMsg}
+              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 flex items-center space-x-1 animate-in fade-in">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{profileMsg}</span>
               </span>
             )}
           </div>
@@ -168,7 +147,7 @@ export const SettingsView = () => {
                   />
                   <div>
                     <div className="text-xs font-bold text-slate-900">{name || currentUser?.name}</div>
-                    <div className="text-[11px] text-slate-500">{currentUser?.role} • {department}</div>
+                    <div className="text-[11px] text-slate-500">@{username}</div>
                     <span className="text-[10px] text-slate-400 block mt-0.5">Max Image File Size: 2.0 MB</span>
                   </div>
                 </div>
@@ -223,236 +202,168 @@ export const SettingsView = () => {
               </div>
             </div>
 
-            {/* Form Fields Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Read-Only Account Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Full Name</span>
+                  <span className="text-[10px] text-slate-400 font-normal flex items-center space-x-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Read Only</span>
+                  </span>
+                </label>
                 <div className="relative">
                   <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    required
+                    readOnly
                     value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      setIsImageSelected(true);
-                    }}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full pl-8 pr-8 py-2 bg-slate-100/80 border border-slate-200 rounded-md text-xs font-medium text-slate-600 cursor-not-allowed outline-none select-none"
                   />
+                  <Lock className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-60" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Username</span>
+                  <span className="text-[10px] text-slate-400 font-normal flex items-center space-x-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Read Only</span>
+                  </span>
+                </label>
+                <div className="relative">
+                  <AtSign className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    readOnly
+                    value={username}
+                    className="w-full pl-8 pr-8 py-2 bg-slate-100/80 border border-slate-200 rounded-md text-xs font-medium text-slate-600 cursor-not-allowed outline-none select-none"
+                  />
+                  <Lock className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-60" />
+                </div>
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Email Address</span>
+                  <span className="text-[10px] text-slate-400 font-normal flex items-center space-x-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>Read Only</span>
+                  </span>
+                </label>
                 <div className="relative">
                   <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="email"
-                    required
+                    readOnly
                     value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setIsImageSelected(true);
-                    }}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-full pl-8 pr-8 py-2 bg-slate-100/80 border border-slate-200 rounded-md text-xs font-medium text-slate-600 cursor-not-allowed outline-none select-none"
                   />
+                  <Lock className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 opacity-60" />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
-                <div className="relative">
-                  <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setIsImageSelected(true);
-                    }}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-md text-xs font-mono focus:ring-1 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
-                <div className="relative">
-                  <Building className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <select
-                    value={department}
-                    onChange={(e) => {
-                      setDepartment(e.target.value);
-                      setIsImageSelected(true);
-                    }}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="Engineering">Engineering</option>
-                    <option value="Quality Assurance">Quality Assurance (QA)</option>
-                    <option value="Product Management">Product Management</option>
-                    <option value="Security Operations">Security Operations</option>
-                  </select>
+              <div className="col-span-1 md:col-span-2 p-3 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-between text-[11px] text-slate-500">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>Full Name, Username, and Email are managed under system security policy and are read-only.</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            {/* Editable Password Change Section */}
+            <div className="pt-4 border-t border-slate-100 space-y-4">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <Lock className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Security Password Management</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Enter a new password below to update your login password.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">New Password</label>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password"
+                      placeholder="Enter new password"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-md text-xs font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password</label>
+                  <div className="relative">
+                    <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      className={`w-full pl-8 pr-3 py-2 border rounded-md text-xs font-mono outline-none bg-white ${
+                        confirmPassword && newPassword !== confirmPassword
+                          ? 'border-red-400 focus:ring-1 focus:ring-red-500'
+                          : 'border-slate-200 focus:ring-1 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Error Message */}
+              {passwordError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-md text-red-700 text-xs font-semibold flex items-center space-x-1.5 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              {/* Mismatch Warning */}
+              {confirmPassword && newPassword !== confirmPassword && !passwordError && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs font-semibold flex items-center space-x-1.5 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>New password and confirm password do not match.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Unified Save Button */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
               <button
                 type="submit"
-                disabled={!isImageSelected || Boolean(avatarError)}
+                disabled={isSaveDisabled}
                 className={`px-5 py-2 font-bold text-xs rounded-md shadow-2xs transition-colors flex items-center space-x-2 ${
-                  !isImageSelected || Boolean(avatarError)
+                  isSaveDisabled
                     ? 'opacity-50 cursor-not-allowed bg-slate-300 text-slate-600'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-md shadow-blue-500/20'
                 }`}
               >
-                <span>Save Profile Changes</span>
+                <Save className="w-4 h-4" />
+                <span>Save Changes</span>
               </button>
-              {!isImageSelected && !avatarError && (
+              {!hasValidChanges && !avatarError && (
                 <span className="text-[10px] text-slate-400 block italic">
-                  Upload a photo or choose an avatar preset above to enable saving profile changes.
+                  Select a new profile picture or enter matching new passwords to enable saving changes.
                 </span>
               )}
             </div>
           </form>
         </div>
 
-        {/* Right Column: Project Hash Code & Team Group Assignment */}
+        {/* Right Column: Database Engine Status */}
         <div className="space-y-6">
-          {/* Project / Lead Hash Code Section */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
-              <Key className="w-4 h-4 text-indigo-600" />
-              <span>Project Workspace Hash Code & Team Assignment</span>
-            </h2>
-
-            {teamMsg && (
-              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded border border-emerald-200">
-                {teamMsg}
-              </p>
-            )}
-
-            <div className="space-y-4">
-              <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-200 space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800">
-                  Your Unique Lead / Team Hash Code
-                </span>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-lg font-bold text-indigo-950 tracking-wider">
-                    {currentUser?.managerCode || 'LEAD-8F2D'}
-                  </span>
-                  <button
-                    onClick={copyManagerCode}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-md flex items-center space-x-1.5 transition-colors shadow-2xs"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied!' : 'Copy Code'}</span>
-                  </button>
-                </div>
-                <p className="text-[11px] text-indigo-700 leading-relaxed pt-1">
-                  Share this code with engineers and testers. When they enter this code, they will automatically join your team project workspace!
-                </p>
-              </div>
-
-              {/* Assign Member by Email Form */}
-              <form onSubmit={handleAssignMember} className="space-y-2 pt-2 border-t border-slate-100">
-                <label className="block text-xs font-bold text-slate-800">
-                  Invite Member to Your Project Team Workspace
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="email"
-                    placeholder="Engineer / Tester Email"
-                    value={assignEmailInput}
-                    onChange={(e) => setAssignEmailInput(e.target.value)}
-                    className="flex-1 px-3 py-1.5 border border-slate-200 rounded-md text-xs outline-none focus:border-blue-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-md flex items-center space-x-1 shrink-0"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Invite</span>
-                  </button>
-                </div>
-              </form>
-
-              {/* Assigned Team Members & Invitations List */}
-              <div className="pt-2 border-t border-slate-100 space-y-3">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  My Team Roster ({myTeamMembers.length} Active • {myPendingInvites.length} Pending Invites)
-                </div>
-
-                <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
-                  {myTeamMembers.length === 0 && myPendingInvites.length === 0 ? (
-                    <div className="py-3 text-center text-slate-400 text-[11px]">
-                      No team members invited yet. Use the input above to send an email invitation!
-                    </div>
-                  ) : (
-                    <>
-                      {/* Verified Team Members */}
-                      {myTeamMembers.map(m => (
-                        <div key={m.id} className="py-2 flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <img src={m.avatar} alt={m.name} className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-400" />
-                            <div>
-                              <div className="font-semibold text-slate-800">{m.name}</div>
-                              <div className="text-[10px] text-slate-400">{m.email}</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            ACTIVE ({m.role})
-                          </span>
-                        </div>
-                      ))}
-
-                      {/* Pending Invitations */}
-                      {myPendingInvites.map(inv => (
-                        <div key={inv.id} className="py-2 flex items-center justify-between bg-amber-50/40 px-2 rounded">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-6 h-6 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-[10px]">
-                              ?
-                            </div>
-                            <div>
-                              <div className="font-semibold text-slate-800">{inv.inviteeEmail}</div>
-                              <div className="text-[10px] text-slate-400">Invite Code: {inv.managerCode}</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded text-[9px] font-bold font-mono bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
-                            PENDING ACCEPTANCE
-                          </span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Join Team Workspace Form */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Join Another Lead's Project Workspace
-                </label>
-                <form onSubmit={handleJoinTeam} className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Enter Lead Code (e.g. LEAD-8F2D)"
-                    value={teamCodeInput}
-                    onChange={(e) => setTeamCodeInput(e.target.value)}
-                    className="flex-1 px-3 py-1.5 border border-slate-200 rounded-md text-xs font-mono font-bold uppercase focus:border-blue-500 outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-2xs transition-colors shrink-0"
-                  >
-                    Join Workspace
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-
           {/* MariaDB Database Status */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">

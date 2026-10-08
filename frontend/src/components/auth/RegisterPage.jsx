@@ -23,27 +23,7 @@ export const RegisterPage = () => {
   const [password, setPassword] = useState('');
   const [company, setCompany] = useState('');
   const [department, setDepartment] = useState('');
-  const [selectedRole, setSelectedRole] = useState('ENGINEER');
   const [loading, setLoading] = useState(false);
-
-  const roles = [
-    {
-      id: 'ENGINEER',
-      title: 'Software Engineer / Tech Lead',
-      desc: 'Plan sprints, manage tasks, review code burndowns, and collaborate across project workspaces.',
-      icon: Code,
-      badge: 'Dev & Lead Access',
-      color: 'border-[#0A66C2] bg-blue-50/40 text-blue-900 ring-2 ring-blue-500/20'
-    },
-    {
-      id: 'TESTER',
-      title: 'QA / Tester Workspace',
-      desc: 'Log bugs, attach test evidence, validate sprint builds, and track quality metrics.',
-      icon: CheckSquare,
-      badge: 'QA & Triage Access',
-      color: 'border-fuchsia-600 bg-fuchsia-50/40 text-fuchsia-900 ring-2 ring-fuchsia-500/20'
-    }
-  ];
 
   const getPasswordStrength = () => {
     if (!password) return { label: 'Empty', percent: 0, color: 'bg-slate-200' };

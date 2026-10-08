@@ -35,7 +35,8 @@ export const Sidebar = () => {
     sidebarCollapsed,
     issues,
     notifications,
-    hasPermission
+    hasPermission,
+    getUserRoleName
   } = useApp();
 
   const [activeAccordion, setActiveAccordion] = useState(null); // 'tasks' | 'management' | 'testing' | 'admin' | null
@@ -89,24 +90,26 @@ export const Sidebar = () => {
           )}
           <nav className="space-y-1 mt-1">
             {/* Home */}
-            <button
-              onClick={() => {
-                setActiveAccordion(null);
-                if (currentRole === 'DEVELOPER') navigateTo('developer_workspace');
-                else if (currentRole === 'TESTER') navigateTo('tester_workspace');
-                else navigateTo('dashboard');
-              }}
-              disabled={!isAssigned}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                isActive('dashboard') || (currentRole === 'DEVELOPER' && isActive('developer_workspace'))
-                  ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
-                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
-              }`}
-              title="Home"
-            >
-              <Home className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span>Home</span>}
-            </button>
+            {hasPermission('dashboard') && (
+              <button
+                onClick={() => {
+                  setActiveAccordion(null);
+                  if (currentRole === 'DEVELOPER') navigateTo('developer_workspace');
+                  else if (currentRole === 'TESTER') navigateTo('tester_workspace');
+                  else navigateTo('dashboard');
+                }}
+                disabled={!isAssigned}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
+                  isActive('dashboard') || (currentRole === 'DEVELOPER' && isActive('developer_workspace'))
+                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Home"
+              >
+                <Home className="w-4 h-4 shrink-0" />
+                {!sidebarCollapsed && <span>Home</span>}
+              </button>
+            )}
 
             {/* Projects */}
             {hasPermission('projects') && (
@@ -415,7 +418,7 @@ export const Sidebar = () => {
         )}
 
         {/* ADMINISTRATION SECTION */}
-        {(hasPermission('user_accounts') || hasPermission('user_roles') || isAdmin) && (
+        {(hasPermission('user_accounts') || hasPermission('user_roles')) && (
           <div>
             <nav className="space-y-1">
               <button
@@ -446,7 +449,7 @@ export const Sidebar = () => {
               {/* Submenu */}
               {!sidebarCollapsed && isAdminSubmenuOpen && (
                 <div className={`pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4 ${disabledClass}`}>
-                  {(hasPermission('user_accounts') || isAdmin) && (
+                  {hasPermission('user_accounts') && (
                     <button
                       onClick={() => navigateTo('user_accounts')}
                       disabled={!isAssigned}
@@ -457,7 +460,7 @@ export const Sidebar = () => {
                       User Accounts
                     </button>
                   )}
-                  {(hasPermission('user_roles') || isAdmin) && (
+                  {hasPermission('user_roles') && (
                     <button
                       onClick={() => navigateTo('user_roles')}
                       disabled={!isAssigned}
@@ -516,10 +519,10 @@ export const Sidebar = () => {
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title="Workspace Settings"
+              title="Settings"
             >
               <Settings className="w-4 h-4 shrink-0 text-slate-300" />
-              {!sidebarCollapsed && <span>Workspace Settings</span>}
+              {!sidebarCollapsed && <span>Settings</span>}
             </button>
 
             <button
@@ -544,7 +547,7 @@ export const Sidebar = () => {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <div className="truncate">
-              <div className="text-[11px] font-bold text-white truncate">{isAdmin ? 'Admin Console' : currentRole === 'MANAGER' ? 'Manager Console' : `${currentRole} Console`}</div>
+              <div className="text-[11px] font-bold text-white truncate">{getUserRoleName ? `${getUserRoleName(currentUser)} Console` : 'Console'}</div>
               <div className="text-[10px] text-emerald-400 font-medium">Connected</div>
               <div className="text-[9px] text-slate-400 font-mono truncate">MariaDB: {currentUser?.companyId ? `standupflow_db_${currentUser.companyId}` : 'standupflow_db'}</div>
             </div>

@@ -120,7 +120,7 @@ export const AppProvider = ({ children }) => {
 
   const fetchRolesPermissions = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/roles`);
+      const res = await fetch(`${API_BASE_URL}/roles`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         setRolesPermissions(data);
@@ -137,16 +137,24 @@ export const AppProvider = ({ children }) => {
   }, [isAuthenticated]);
 
   const hasPermission = (menuKey) => {
-    if (currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1) {
+    // Primary Root Administrator (rootadmin === 1 or roleCode === 1) gets full unrestricted bypass
+    const userRoleCode = currentUser?.roleCode !== undefined && currentUser?.roleCode !== null
+      ? Number(currentUser.roleCode)
+      : (currentUser?.role === 'ADMIN' || currentUser?.role === 1 ? 1 : Number(currentUser?.role || 1));
+
+    if (currentUser?.rootadmin === 1 || userRoleCode === 1 || currentRole === 'ADMIN' || currentRole === 'ROOT') {
       return true;
     }
-    const userRoleCode = currentUser?.roleCode || currentUser?.role;
+
     const roleObj = rolesPermissions.find(r => 
-      String(r.roleCode) === String(userRoleCode) || 
-      (r.roleName && currentUser?.role && r.roleName.toLowerCase().includes(String(currentUser.role).toLowerCase()))
+      Number(r.roleCode) === userRoleCode || 
+      (r.roleName && currentUser?.role && String(r.roleName).toLowerCase() === String(currentUser.role).toLowerCase())
     );
 
     if (!roleObj || !roleObj.permissionsJson) {
+      if (userRoleCode > 4) {
+        return menuKey === 'dashboard';
+      }
       return true;
     }
 
@@ -154,8 +162,36 @@ export const AppProvider = ({ children }) => {
       const perms = JSON.parse(roleObj.permissionsJson);
       return Array.isArray(perms) ? perms.includes(menuKey) : true;
     } catch (e) {
-      return true;
+      return menuKey === 'dashboard';
     }
+  };
+
+  const getUserRoleName = (userToLookup = currentUser) => {
+    const userObj = userToLookup || currentUser;
+    if (!userObj) return 'User';
+    if (userObj.rootadmin === 1) return 'Company Administrator (Root)';
+
+    const userRoleCode = userObj.roleCode !== undefined && userObj.roleCode !== null
+      ? Number(userObj.roleCode)
+      : (userObj.role === 'ADMIN' || userObj.role === 1 ? 1 : Number(userObj.role || 1));
+
+    if (rolesPermissions && Array.isArray(rolesPermissions)) {
+      const found = rolesPermissions.find(r => Number(r.roleCode) === userRoleCode);
+      if (found && found.roleName) {
+        return found.roleName;
+      }
+    }
+
+    if (userRoleCode === 1) return 'Company Administrator';
+    if (userRoleCode === 2) return 'Engineering Manager';
+    if (userRoleCode === 3) return 'Software Engineer';
+    if (userRoleCode === 4) return 'QA / Tester';
+
+    if (userObj.role && isNaN(Number(userObj.role)) && userObj.role !== 'ADMIN') {
+      return userObj.role;
+    }
+
+    return `Role ${userRoleCode}`;
   };
 
   // View & UI Navigation State
@@ -343,14 +379,14 @@ export const AppProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [apiUrl]);
 
-  // Login handler against MariaDB backend
-  const login = async (email, password) => {
+  // Login handler against MariaDB backend with 3 inputs: companyIdentifier (companyId or admin email), username, and password
+  const login = async (companyIdentifier, username, password) => {
     setAuthError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ companyIdentifier, username, password })
       });
       const data = await response.json();
 
@@ -363,6 +399,7 @@ export const AppProvider = ({ children }) => {
         setCurrentUser(user);
         setCurrentRole(user.role);
         setIsAuthenticated(true);
+        fetchRolesPermissions();
 
         // Strict role view assignment
         if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
@@ -380,8 +417,8 @@ export const AppProvider = ({ children }) => {
       }
     } catch (err) {
       // Fallback local authentication
-      const user = users.find(u => u.email === email);
-      if (user) {
+      const user = users.find(u => u.username === username || u.email === username);
+      if (user && user.password === password) {
         setCurrentUser(user);
         setCurrentRole(user.role);
         setIsAuthenticated(true);
@@ -1457,6 +1494,7 @@ export const AppProvider = ({ children }) => {
         rolesPermissions,
         fetchRolesPermissions,
         hasPermission,
+        getUserRoleName,
         API_BASE_URL,
         // Setters
         setCurrentProject,

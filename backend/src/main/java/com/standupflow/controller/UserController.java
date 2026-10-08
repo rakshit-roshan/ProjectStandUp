@@ -108,13 +108,10 @@ public class UserController {
             );
 
             User savedUser = userRepository.save(newUser);
-            try {
-                if (newUser.getMetrics() != null) {
-                    userMetricsRepository.save(newUser.getMetrics());
-                }
-            } catch (Exception ignored) {}
             return ResponseEntity.ok(savedUser);
         } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("[UserController] ERROR IN CREATE USER: " + e.getClass().getName() + " - " + e.getMessage());
             return ResponseEntity.internalServerError().body("Failed to create user account: " + e.getMessage());
         }
     }
@@ -127,6 +124,26 @@ public class UserController {
             user.setEnable(enableStatus);
             user.setModifiedDatetime(LocalDateTime.now().toString());
             return ResponseEntity.ok(userRepository.save(user));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    // Update User Role Endpoint
+    @PutMapping("/{id}/update-role")
+    public ResponseEntity<?> updateUserRole(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        Object roleObj = body.get("role");
+        if (roleObj == null) {
+            roleObj = body.get("roleCode");
+        }
+        if (roleObj == null) {
+            return ResponseEntity.badRequest().body("Role specification missing.");
+        }
+        final Object finalRole = roleObj;
+        return userRepository.findById(id).map(user -> {
+            user.setRole(finalRole);
+            user.setModifiedDatetime(LocalDateTime.now().toString());
+            User saved = userRepository.save(user);
+            System.out.println("[UserController] Updated user ID " + id + " role to: " + user.getRoleCode());
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -195,5 +212,27 @@ public class UserController {
             return ResponseEntity.ok(userRepository.save(member));
         }
         return ResponseEntity.notFound().build();
+    }
+
+    // Delete User Account Endpoint
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable String id) {
+        return userRepository.findById(id).map(user -> {
+            if ((user.getRootadmin() != null && user.getRootadmin() == 1) || "root".equalsIgnoreCase(user.getUsername())) {
+                return ResponseEntity.badRequest().body("Primary Root Administrator account cannot be deleted.");
+            }
+            try {
+                userMetricsRepository.findByUserId(id).ifPresent(m -> userMetricsRepository.delete(m));
+                try {
+                    Long metricId = Long.parseLong(id);
+                    if (userMetricsRepository.existsById(metricId)) {
+                        userMetricsRepository.deleteById(metricId);
+                    }
+                } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+            userRepository.delete(user);
+            System.out.println("[UserController] Deleted user ID: " + id + " (" + user.getUsername() + ")");
+            return ResponseEntity.ok().build();
+        }).orElse(ResponseEntity.notFound().build());
     }
 }

@@ -13,7 +13,9 @@ import {
   Search,
   Lock,
   Edit3,
-  Power
+  Power,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 
 export const UserAccountsView = () => {
@@ -32,6 +34,14 @@ export const UserAccountsView = () => {
   const [formError, setFormError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const [pendingRoles, setPendingRoles] = useState({});
+  const [savingRoles, setSavingRoles] = useState({});
+
+  // Delete User State
+  const [deleteModalUser, setDeleteModalUser] = useState(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState(null);
+
   const getHeaders = () => {
     const headers = { 'Content-Type': 'application/json' };
     const companyId = currentUser?.companyId || localStorage.getItem('standupflow_company_id');
@@ -39,6 +49,78 @@ export const UserAccountsView = () => {
       headers['X-Company-Id'] = companyId;
     }
     return headers;
+  };
+
+  const handleDeleteUser = (usr) => {
+    if (usr.rootadmin === 1 || usr.username === 'root') {
+      alert("Primary Root Administrator account cannot be deleted.");
+      return;
+    }
+    setDeleteUserError(null);
+    setDeleteModalUser(usr);
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteModalUser) return;
+    setIsDeletingUser(true);
+    setDeleteUserError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/${deleteModalUser.id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      if (res.ok) {
+        if (setUsers) {
+          setUsers(prev => prev.filter(u => String(u.id) !== String(deleteModalUser.id)));
+        }
+        setDeleteModalUser(null);
+        if (fetchUsers) fetchUsers();
+      } else {
+        const txt = await res.text();
+        setDeleteUserError(txt || "Failed to delete user account.");
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteUserError("Server error while deleting user account.");
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  const handleSaveRole = async (userId) => {
+    const newRoleCode = pendingRoles[userId];
+    if (newRoleCode === undefined) return;
+
+    setSavingRoles(prev => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/${userId}/update-role`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ role: newRoleCode, roleCode: newRoleCode })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        if (setUsers) {
+          setUsers(prev => prev.map(u => String(u.id) === String(userId) ? updatedUser : u));
+        }
+        setPendingRoles(prev => {
+          const next = { ...prev };
+          delete next[userId];
+          return next;
+        });
+        if (fetchUsers) fetchUsers();
+      } else {
+        const txt = await res.text();
+        alert("Failed to save role: " + (txt || "Server error"));
+      }
+    } catch (err) {
+      console.error("Failed to update user role", err);
+      alert("Connection error while updating user role.");
+    } finally {
+      setSavingRoles(prev => ({ ...prev, [userId]: false }));
+    }
   };
 
   useEffect(() => {
@@ -229,15 +311,58 @@ export const UserAccountsView = () => {
                     </td>
 
                     <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded font-semibold border border-slate-200">
-                        {(() => {
-                          const targetCode = usr.roleCode !== undefined && usr.roleCode !== null ? usr.roleCode : usr.role;
-                          const foundRole = rolesList.find(r => Number(r.roleCode) === Number(targetCode));
-                          if (foundRole) return foundRole.roleName;
-                          if (Number(targetCode) === 1 || usr.role === 'ADMIN') return 'Company Administrator';
-                          return usr.role || 'DEVELOPER';
-                        })()}
-                      </span>
+                      {(() => {
+                        const currentRoleCode = Number(usr.roleCode !== undefined && usr.roleCode !== null ? usr.roleCode : (usr.role === 'ADMIN' ? 1 : (usr.role || 1)));
+                        const selectedRoleCode = pendingRoles[usr.id] !== undefined ? Number(pendingRoles[usr.id]) : currentRoleCode;
+                        const isChanged = pendingRoles[usr.id] !== undefined && Number(pendingRoles[usr.id]) !== currentRoleCode;
+                        const isSaving = Boolean(savingRoles[usr.id]);
+
+                        const userRolesOptions = [...activeRoles];
+                        if (!userRolesOptions.some(r => Number(r.roleCode) === currentRoleCode)) {
+                          const foundRoleInList = rolesList.find(r => Number(r.roleCode) === currentRoleCode);
+                          const roleName = foundRoleInList ? foundRoleInList.roleName : (usr.role || `Role ${currentRoleCode}`);
+                          userRolesOptions.push({ roleCode: currentRoleCode, roleName });
+                        }
+
+                        if (isRootAdmin) {
+                          return (
+                            <span className="px-2.5 py-1 bg-amber-50 text-amber-900 rounded font-semibold border border-amber-200 inline-block">
+                              Company Administrator
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <div className="flex items-center space-x-2">
+                            <select
+                              value={selectedRoleCode}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setPendingRoles(prev => ({ ...prev, [usr.id]: val }));
+                              }}
+                              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+                            >
+                              {userRolesOptions.map(r => (
+                                <option key={r.roleCode} value={r.roleCode}>
+                                  {r.roleName}
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              disabled={!isChanged || isSaving}
+                              onClick={() => handleSaveRole(usr.id)}
+                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center space-x-1 ${
+                                isChanged && !isSaving
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              {isSaving ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4 text-slate-600">
@@ -257,33 +382,44 @@ export const UserAccountsView = () => {
 
                     <td className="py-3 px-4 text-right">
                       {!isRootAdmin ? (
-                        <button
-                          onClick={async () => {
-                            const newStatus = isAccountEnabled ? 0 : 1;
-                            try {
-                              const res = await fetch(`${API_BASE_URL}/users/${usr.id}/toggle-enable`, {
-                                method: 'PUT',
-                                headers: getHeaders(),
-                                body: JSON.stringify({ enable: newStatus })
-                              });
-                              if (res.ok) {
-                                if (setUsers) {
-                                  setUsers(prev => prev.map(u => u.id === usr.id ? { ...u, enable: newStatus } : u));
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={async () => {
+                              const newStatus = isAccountEnabled ? 0 : 1;
+                              try {
+                                const res = await fetch(`${API_BASE_URL}/users/${usr.id}/toggle-enable`, {
+                                  method: 'PUT',
+                                  headers: getHeaders(),
+                                  body: JSON.stringify({ enable: newStatus })
+                                });
+                                if (res.ok) {
+                                  if (setUsers) {
+                                    setUsers(prev => prev.map(u => u.id === usr.id ? { ...u, enable: newStatus } : u));
+                                  }
+                                  if (fetchUsers) fetchUsers();
                                 }
-                                if (fetchUsers) fetchUsers();
+                              } catch (e) {
+                                console.error(e);
                               }
-                            } catch (e) {
-                              console.error(e);
-                            }
-                          }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                            isAccountEnabled
-                              ? 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200'
-                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
-                          }`}
-                        >
-                          {isAccountEnabled ? 'Disable Account' : 'Enable Account'}
-                        </button>
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                              isAccountEnabled
+                                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
+                            }`}
+                            title={isAccountEnabled ? 'Disable Account' : 'Enable Account'}
+                          >
+                            {isAccountEnabled ? 'Disable' : 'Enable'}
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteUser(usr)}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-all cursor-pointer flex items-center justify-center"
+                            title="Delete User Account"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-[10px] text-slate-400 font-mono italic">Primary Root</span>
                       )}
@@ -305,7 +441,7 @@ export const UserAccountsView = () => {
                 <UserPlus className="w-5 h-5 text-blue-600" />
                 <h2 className="font-bold text-slate-900 text-sm">Create New Team Account</h2>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer">✕</button>
             </div>
 
             {formError && (
@@ -393,19 +529,72 @@ export const UserAccountsView = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
                 >
                   {loading ? 'Creating...' : 'Create Account'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Account Confirmation Modal */}
+      {deleteModalUser && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-red-600">
+                <Trash2 className="w-5 h-5" />
+                <h2 className="font-bold text-slate-900 text-sm">Delete User Account</h2>
+              </div>
+              <button onClick={() => setDeleteModalUser(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer">✕</button>
+            </div>
+
+            {deleteUserError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
+                {deleteUserError}
+              </div>
+            )}
+
+            <div className="space-y-2 text-xs text-slate-600">
+              <p>
+                Are you sure you want to permanently delete user account <strong className="text-slate-900 font-bold">{deleteModalUser.fullname || deleteModalUser.name}</strong> (@{deleteModalUser.username})?
+              </p>
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-700 space-y-0.5">
+                <div>Email: {deleteModalUser.emailid || deleteModalUser.email}</div>
+                <div>Role Code: {deleteModalUser.roleCode || deleteModalUser.role || 1}</div>
+              </div>
+              <p className="text-[11px] text-red-500 italic">
+                This action will remove the user account from your workspace.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalUser(null)}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingUser}
+                onClick={handleConfirmDeleteUser}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingUser ? 'Deleting...' : 'Delete Account'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

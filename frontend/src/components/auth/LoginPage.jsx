@@ -4,7 +4,8 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Mail,
+  Building,
+  User,
   ArrowRight,
   AlertCircle,
   CheckCircle2,
@@ -14,7 +15,8 @@ import {
 
 export const LoginPage = () => {
   const { login, authError, navigateTo } = useApp();
-  const [email, setEmail] = useState('');
+  const [companyIdentifier, setCompanyIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -23,7 +25,7 @@ export const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await login(email, password);
+    await login(companyIdentifier, username, password);
     setLoading(false);
   };
 
@@ -54,7 +56,7 @@ export const LoginPage = () => {
         </div>
       </header>
 
-      {/* Main Body (Fits 100% within viewable area with standard font sizes) */}
+      {/* Main Body */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 md:px-8 flex items-center justify-between min-h-0">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center w-full my-auto">
           
@@ -110,7 +112,7 @@ export const LoginPage = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Sign in</h2>
                 <p className="text-xs text-slate-500 mt-1 font-normal">
-                  Stay updated on your workspace activity
+                  Enter your organization & user credentials to access your workspace
                 </p>
               </div>
 
@@ -124,23 +126,44 @@ export const LoginPage = () => {
 
               {/* Credentials Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
+                
+                {/* Input 1: Company ID or Admin Email */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Email address or Username
+                    Company ID or Admin Email
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <Building className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <input
                       type="text"
                       required
-                      placeholder="name@company.com or username"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. 84920153 or admin@company.com"
+                      value={companyIdentifier}
+                      onChange={(e) => setCompanyIdentifier(e.target.value)}
                       className="w-full bg-white border border-slate-300 focus:border-[#0A66C2] focus:ring-2 focus:ring-blue-100 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 font-medium outline-none transition-all"
                     />
                   </div>
                 </div>
 
+                {/* Input 2: Username */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter your username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full bg-white border border-slate-300 focus:border-[#0A66C2] focus:ring-2 focus:ring-blue-100 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 font-medium outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Input 3: Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700">

@@ -27,7 +27,9 @@ public class TenantInterceptor extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Ignore static assets or open auth endpoints without company header
+        // Always clear leftover thread-local tenant context first so master database queries hit standupflow_db
+        TenantContext.clear();
+
         String path = request.getRequestURI();
         if (path.startsWith("/api/v1/auth/register") || path.startsWith("/api/v1/auth/login")) {
             filterChain.doFilter(request, response);
@@ -40,7 +42,7 @@ public class TenantInterceptor extends OncePerRequestFilter {
         }
 
         if (companyId != null && !companyId.trim().isEmpty()) {
-            Optional<CompanyRegistration> regOpt = companyRegistrationRepository.findByCompanyId(companyId.trim());
+            Optional<CompanyRegistration> regOpt = tenantDatabaseService.findCompanyRegistrationByIdOrEmail(companyId.trim());
 
             if (regOpt.isEmpty()) {
                 // Tenant registration record deleted

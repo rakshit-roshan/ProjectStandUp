@@ -21,6 +21,7 @@ import {
 export const Header = () => {
   const {
     currentUser,
+    getUserRoleName,
     currentRole,
     projects,
     currentProject,
@@ -53,19 +54,30 @@ export const Header = () => {
   );
   const unreadNotifs = userNotifications.filter(n => !n.read);
   const hasNoProjects = !projects || projects.length === 0 || !currentProject;
-  const isAdmin = currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1 || currentUser?.role === 'ADMIN' || currentUser?.role === 1 || currentUser?.role === '1';
+  const isAdmin = currentUser?.rootadmin === 1 || String(currentRole) === '1' || currentRole === 'ADMIN' || currentRole === 'ROOT';
   const isAssigned = isAdmin || currentRole === 'MANAGER' || Boolean(currentUser?.managerCode);
   const disabledClass = (!isAssigned || hasNoProjects) ? 'opacity-40 cursor-not-allowed pointer-events-none' : '';
 
-  const roleBadges = {
-    ADMIN: { bg: 'bg-amber-50 text-amber-700 border-amber-200/80', label: 'Company Administrator (Root)', icon: Shield },
-    ENGINEER: { bg: 'bg-blue-50 text-blue-700 border-blue-200/80', label: 'Software Engineer / Lead', icon: Code },
-    TESTER: { bg: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200/80', label: 'QA / Tester Workspace', icon: CheckSquare }
-  };
+  const displayRoleName = getUserRoleName ? getUserRoleName(currentUser) : 'User';
+  const userRoleCode = currentUser?.roleCode !== undefined && currentUser?.roleCode !== null
+    ? Number(currentUser.roleCode)
+    : (currentUser?.role === 'ADMIN' || currentUser?.role === 1 ? 1 : Number(currentUser?.role || 1));
 
-  const normRole = isAdmin ? 'ADMIN' : (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
-  const currentRoleInfo = roleBadges[normRole] || roleBadges.ADMIN;
-  const RoleIcon = currentRoleInfo.icon;
+  let badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200/80';
+  let RoleIcon = Shield;
+  if (isAdmin || userRoleCode === 1) {
+    badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200/80';
+    RoleIcon = Shield;
+  } else if (userRoleCode === 2) {
+    badgeStyle = 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
+    RoleIcon = Shield;
+  } else if (userRoleCode === 3) {
+    badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200/80';
+    RoleIcon = Code;
+  } else if (userRoleCode === 4) {
+    badgeStyle = 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200/80';
+    RoleIcon = CheckSquare;
+  }
 
   return (
     <header className="h-14 shrink-0 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between gap-8 md:gap-12 z-30 shadow-2xs w-full">
@@ -199,9 +211,9 @@ export const Header = () => {
         </div>
 
         {/* Console Role Badge */}
-        <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center space-x-1.5 ${currentRoleInfo.bg}`}>
+        <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center space-x-1.5 ${badgeStyle}`}>
           <RoleIcon className="w-3.5 h-3.5" />
-          <span>{currentRoleInfo.label}</span>
+          <span>{displayRoleName}</span>
         </div>
 
         {/* Quick Action Button: + New Task / + New Sprint */}
@@ -312,7 +324,7 @@ export const Header = () => {
             />
             <div className="text-left hidden md:block">
               <div className="text-xs font-bold text-slate-800 leading-none">{currentUser?.name || 'man'}</div>
-              <div className="text-[10px] text-slate-400 leading-tight capitalize mt-0.5">{currentRole.toLowerCase()}</div>
+              <div className="text-[10px] text-slate-400 leading-tight capitalize mt-0.5">{displayRoleName}</div>
             </div>
           </button>
 
