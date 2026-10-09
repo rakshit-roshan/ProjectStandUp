@@ -568,9 +568,8 @@ export const UserAccountsView = () => {
               <p>
                 Are you sure you want to permanently delete user account <strong className="text-slate-900 font-bold">{deleteModalUser.fullname || deleteModalUser.name}</strong> (@{deleteModalUser.username})?
               </p>
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-700 space-y-0.5">
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px] text-slate-700">
                 <div>Email: {deleteModalUser.emailid || deleteModalUser.email}</div>
-                <div>Role Code: {deleteModalUser.roleCode || deleteModalUser.role || 1}</div>
               </div>
               <p className="text-[11px] text-red-500 italic">
                 This action will remove the user account from your workspace.
