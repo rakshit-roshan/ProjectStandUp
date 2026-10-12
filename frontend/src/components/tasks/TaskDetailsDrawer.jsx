@@ -192,19 +192,29 @@ export const TaskDetailsDrawer = () => {
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Assignee</label>
               <select
-                value={selectedTask.assigneeId}
+                value={selectedTask.assigneeId || ''}
                 onChange={(e) => {
-                  const u = users.find(usr => usr.id === e.target.value);
-                  if (u) {
+                  const targetId = e.target.value;
+                  if (!targetId) {
                     updateTask(selectedTask.id, {
-                      assigneeId: u.id,
-                      assigneeName: u.name,
-                      assigneeAvatar: u.avatar
+                      assigneeId: '',
+                      assigneeName: 'Unassigned',
+                      assigneeAvatar: ''
                     });
+                  } else {
+                    const u = users.find(usr => String(usr.id) === String(targetId));
+                    if (u) {
+                      updateTask(selectedTask.id, {
+                        assigneeId: u.id,
+                        assigneeName: u.name,
+                        assigneeAvatar: u.avatar
+                      });
+                    }
                   }
                 }}
                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
               >
+                <option value="">Unassigned</option>
                 {teamMembers.map(u => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
@@ -243,17 +253,20 @@ export const TaskDetailsDrawer = () => {
                   const sp = sprints.find(s => String(s.id) === String(spId));
                   updateTask(selectedTask.id, {
                     sprintId: spId,
-                    sprintName: sp ? sp.name : 'Backlog'
+                    sprintName: sp ? sp.name : '',
+                    projectId: sp?.projectId || selectedTask.projectId,
+                    projectName: sp?.projectName || selectedTask.projectName
                   });
                 }}
                 className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
               >
                 <option value="">-- No Sprint (Backlog) --</option>
-                {(sprints || [])
-                  .filter(s => currentProject && (s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)))
-                  .map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
+                {((sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)).length > 0
+                  ? (sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id))
+                  : (sprints || [])
+                ).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
               </select>
             </div>
 

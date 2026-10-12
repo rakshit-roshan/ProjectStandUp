@@ -12,19 +12,23 @@ export const CreateSprintModal = () => {
     currentProject
   } = useApp();
 
-  const hasNoProjects = !projects || projects.length === 0 || !currentProject;
-  const projectSprints = (sprints || []).filter(s => s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id));
+  const activeProject = currentProject || (projects && projects.length > 0 ? projects[0] : null);
+  const hasNoProjects = !activeProject;
+  const projectSprints = (sprints || []).filter(s => s.projectId === activeProject?.id || String(s.projectId) === String(activeProject?.id));
   const nextSprintNumber = projectSprints.length + 1;
 
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
     if (isCreateSprintModalOpen) {
       setName(`Sprint ${String(nextSprintNumber).padStart(2, '0')}`);
       setGoal('');
+      setErrorMessage(null);
       const today = new Date().toISOString().split('T')[0];
       const twoWeeksLater = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
       setStartDate(today);
@@ -37,14 +41,24 @@ export const CreateSprintModal = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (hasNoProjects) return;
-    await createSprint({
-      name,
-      goal,
-      startDate,
-      endDate,
-      projectId: currentProject?.id
-    });
-    setIsCreateSprintModalOpen(false);
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await createSprint({
+        name,
+        goal,
+        startDate,
+        endDate,
+        projectId: activeProject?.id,
+        projectName: activeProject?.name
+      });
+      setIsCreateSprintModalOpen(false);
+    } catch (err) {
+      console.error('Failed to create sprint:', err);
+      setErrorMessage(err.message || 'Failed to create sprint. Please check database connectivity.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,12 +78,27 @@ export const CreateSprintModal = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-xs font-semibold flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {hasNoProjects && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs font-semibold flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>No project workspace exists. Please create a project workspace first before creating sprints.</span>
             </div>
           )}
+
+          {activeProject && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-slate-700">
+              <span className="font-medium">Target Project:</span>
+              <span className="font-bold text-blue-600 font-mono">{activeProject.name} ({activeProject.code || activeProject.id})</span>
+            </div>
+          )}
+
           <div>
             <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Sprint Name *</label>
             <input
@@ -116,6 +145,7 @@ export const CreateSprintModal = () => {
           <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => setIsCreateSprintModalOpen(false)}
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded text-xs"
             >
@@ -123,14 +153,21 @@ export const CreateSprintModal = () => {
             </button>
             <button
               type="submit"
-              disabled={hasNoProjects}
-              className={`px-4 py-1.5 text-white font-semibold rounded text-xs transition-colors ${
-                hasNoProjects
+              disabled={hasNoProjects || isSubmitting}
+              className={`px-4 py-1.5 text-white font-semibold rounded text-xs transition-colors flex items-center space-x-1.5 ${
+                hasNoProjects || isSubmitting
                   ? 'bg-slate-300 cursor-not-allowed opacity-60'
                   : 'bg-amber-600 hover:bg-amber-700 shadow-2xs'
               }`}
             >
-              Create Sprint
+              {isSubmitting ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block"></span>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Create Sprint</span>
+              )}
             </button>
           </div>
         </form>

@@ -108,7 +108,7 @@ export const TeamMembersView = () => {
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto text-xs">
       {/* Top Banner */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div id="team-header" className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center space-x-3.5">
           <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
             <Users className="w-6 h-6" />
@@ -127,7 +127,7 @@ export const TeamMembersView = () => {
         </div>
 
         {/* Project Hash Invite Code Card */}
-        <div className="flex items-center space-x-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
+        <div id="team-invite-code" className="flex items-center space-x-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Project Invite Code</div>
             <div className="font-mono font-bold text-slate-900 text-xs">{currentProject?.inviteCode || currentUser?.managerCode || 'PRJ-CORE'}</div>
@@ -151,7 +151,7 @@ export const TeamMembersView = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Member Roster List (2 cols width) */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
+        <div id="team-roster" className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
@@ -247,7 +247,7 @@ export const TeamMembersView = () => {
         {/* Right Column: Add Member & Pending Invitations (1 col width) */}
         <div className="space-y-6">
           {/* Invite New Member Box */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+          <div id="team-invite-form" className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
               <UserPlus className="w-4 h-4 text-blue-600" />
               <span>Invite Member to Project Workspace</span>
@@ -281,7 +281,7 @@ export const TeamMembersView = () => {
           </div>
 
           {/* Pending Invitations List */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
+          <div id="team-pending-invites" className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
               <Clock className="w-4 h-4 text-amber-500" />
               <span>Pending Invitations ({projectPendingInvites.length})</span>
@@ -309,7 +309,7 @@ export const TeamMembersView = () => {
           </div>
 
           {/* Join Another Project Workspace Box */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
+          <div id="team-join-workspace" className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
               <Key className="w-4 h-4 text-indigo-600" />
               <span>Join Another Project Workspace</span>

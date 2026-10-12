@@ -16,7 +16,7 @@ export const NotificationsCenterView = () => {
 
   return (
     <div className="p-6 space-y-4 max-w-[1200px] mx-auto">
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
+      <div id="notifications-center-header" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-50 text-blue-600 rounded-md">
             <Bell className="w-5 h-5" />
@@ -45,7 +45,7 @@ export const NotificationsCenterView = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-2xs divide-y divide-slate-100 overflow-hidden">
+      <div id="notifications-list" className="bg-white rounded-lg border border-slate-200 shadow-2xs divide-y divide-slate-100 overflow-hidden">
         {displayedNotifs.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">No notifications found</div>
         ) : (

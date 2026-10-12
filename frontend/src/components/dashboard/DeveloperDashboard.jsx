@@ -273,10 +273,22 @@ export const DeveloperDashboard = () => {
                       </td>
                       <td className="p-3">{task.priority}</td>
                       <td className="p-3">
-                        <div className="flex items-center space-x-1.5">
-                          <img src={task.assigneeAvatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80'} alt={task.assigneeName} className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200" />
-                          <span className="text-slate-800 font-semibold">{task.assigneeName || 'Unassigned'}</span>
-                        </div>
+                        {(!task.assigneeId || !String(task.assigneeId).trim() || task.assigneeName === 'Unassigned') ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Unassigned">
+                            Unassigned
+                          </span>
+                        ) : (
+                          <div className="flex items-center space-x-1.5">
+                            {task.assigneeAvatar ? (
+                              <img src={task.assigneeAvatar} alt={task.assigneeName} className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200" />
+                            ) : (
+                              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                {task.assigneeName?.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                            <span className="text-slate-800 font-semibold">{task.assigneeName}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">

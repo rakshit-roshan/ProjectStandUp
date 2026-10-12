@@ -60,7 +60,7 @@ export const KanbanView = () => {
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto h-[calc(100vh-3.5rem)] flex flex-col">
       {/* Top Filter & Actions Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
+      <div id="tasks-kanban-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-50 text-blue-600 rounded-md">
             <KanbanIcon className="w-5 h-5" />
@@ -72,7 +72,7 @@ export const KanbanView = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div id="tasks-kanban-filters" className="flex flex-wrap items-center gap-2">
           {/* Priority Filter */}
           <select
             value={selectedPriority}
@@ -101,7 +101,7 @@ export const KanbanView = () => {
       </div>
 
       {/* 4 Column Kanban Canvas */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-hidden pb-2">
+      <div id="tasks-kanban-board" className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-hidden pb-2">
         {columns.map(col => {
           const colTasks = filteredTasks.filter(t => t.status === col.id);
           return (
@@ -178,20 +178,41 @@ export const KanbanView = () => {
                         {/* Footer Info: Assignee & Assigned By with Circular DPs and Hover Tooltips */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-500">
                           <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                            {/* Assignee Circular DP */}
-                            <div 
-                              className="flex items-center space-x-1 bg-slate-100/80 px-1.5 py-0.5 rounded-full border border-slate-200/60"
-                              title={`Assigned To: ${assigneeName}`}
-                            >
-                              <img
-                                src={task.assigneeAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(assigneeName)}&background=3b82f6&color=fff`}
-                                alt={assigneeName}
-                                className="w-4 h-4 rounded-full object-cover shrink-0"
-                              />
-                              <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[60px]">
-                                {assigneeName.split(' ')[0]}
-                              </span>
-                            </div>
+                            {/* Assignee Pill */}
+                            {(() => {
+                              const isUnassigned = !task.assigneeId || !String(task.assigneeId).trim() || task.assigneeName === 'Unassigned' || assigneeName === 'Unassigned';
+                              if (isUnassigned) {
+                                return (
+                                  <div 
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500"
+                                    title="Unassigned"
+                                  >
+                                    Unassigned
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div 
+                                  className="flex items-center space-x-1 bg-slate-100/80 px-1.5 py-0.5 rounded-full border border-slate-200/60"
+                                  title={`Assigned To: ${assigneeName}`}
+                                >
+                                  {task.assigneeAvatar ? (
+                                    <img
+                                      src={task.assigneeAvatar}
+                                      alt={assigneeName}
+                                      className="w-4 h-4 rounded-full object-cover shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+                                      {assigneeName.charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[60px]">
+                                    {assigneeName.split(' ')[0]}
+                                  </span>
+                                </div>
+                              );
+                            })()}
 
                             <span className="text-[9px] text-slate-400 font-semibold">by</span>
 

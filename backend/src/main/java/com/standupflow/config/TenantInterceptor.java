@@ -23,12 +23,31 @@ public class TenantInterceptor extends OncePerRequestFilter {
     @Autowired
     private TenantDatabaseService tenantDatabaseService;
 
+    private final java.util.Set<String> alignedDatabases = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
         // Always clear leftover thread-local tenant context first so master database queries hit standupflow_db
         TenantContext.clear();
+
+        // Ensure CORS headers are present on all responses so browser does not block API requests
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.trim().isEmpty()) {
+            response.setHeader("Access-Control-Allow-Origin", origin);
+        } else {
+            response.setHeader("Access-Control-Allow-Origin", "*");
+        }
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+
+        // Preflight OPTIONS requests must immediately return 200 OK without requiring tenant headers
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
 
         String path = request.getRequestURI();
         if (path.startsWith("/api/v1/auth/register") || path.startsWith("/api/v1/auth/login")) {
@@ -38,11 +57,21 @@ public class TenantInterceptor extends OncePerRequestFilter {
 
         String companyId = request.getHeader("X-Company-Id");
         if (companyId == null || companyId.trim().isEmpty()) {
+            companyId = request.getHeader("x-company-id");
+        }
+        if (companyId == null || companyId.trim().isEmpty()) {
+            companyId = request.getHeader("Company-Id");
+        }
+        if (companyId == null || companyId.trim().isEmpty()) {
+            companyId = request.getHeader("company-id");
+        }
+        if (companyId == null || companyId.trim().isEmpty()) {
             companyId = request.getParameter("companyId");
         }
 
         if (companyId != null && !companyId.trim().isEmpty()) {
-            Optional<CompanyRegistration> regOpt = tenantDatabaseService.findCompanyRegistrationByIdOrEmail(companyId.trim());
+            String cleanCompanyId = companyId.trim().replace("\"", "").replace("'", "");
+            Optional<CompanyRegistration> regOpt = tenantDatabaseService.findCompanyRegistrationByIdOrEmail(cleanCompanyId);
 
             if (regOpt.isEmpty()) {
                 // Tenant registration record deleted
@@ -57,11 +86,19 @@ public class TenantInterceptor extends OncePerRequestFilter {
                 return;
             }
 
+            if (alignedDatabases.add(reg.getDatabaseName())) {
+                tenantDatabaseService.alignAllTenantTableSchemas(reg.getDatabaseName());
+            }
+
             TenantContext.setTenant(reg.getCompanyId(), reg.getDatabaseName());
             System.out.println("[TenantInterceptor] Set tenant context -> Company: " + reg.getCompanyId() + " | DB: " + reg.getDatabaseName() + " for request: " + path);
         } else {
             TenantContext.clear();
-            System.out.println("[TenantInterceptor] No X-Company-Id header provided for request: " + path + " (Defaulting to master db standupflow_db)");
+            System.out.println("[TenantInterceptor] No X-Company-Id header provided for request: " + path + " (Rejecting: master database standupflow_db contains ONLY tblOrg_details)");
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"MISSING_COMPANY_ID\", \"message\": \"Header 'X-Company-Id' is required. Workspace data is stored in the company database.\"}");
+            return;
         }
 
         try {

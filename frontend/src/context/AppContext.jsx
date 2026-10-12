@@ -257,9 +257,9 @@ export const AppProvider = ({ children }) => {
 
   const getHeaders = (extra = {}) => {
     const headers = { 'Content-Type': 'application/json', ...extra };
-    const companyId = localStorage.getItem('standupflow_company_id') || currentUser?.companyId;
+    const companyId = currentUser?.companyId || currentUser?.company_id || localStorage.getItem('standupflow_company_id');
     if (companyId) {
-      headers['X-Company-Id'] = companyId;
+      headers['X-Company-Id'] = String(companyId);
     }
     return headers;
   };
@@ -320,12 +320,12 @@ export const AppProvider = ({ children }) => {
         }
         if (projectsRes.ok) {
           const projData = await projectsRes.json();
-          if (projData && Array.isArray(projData) && projData.length > 0) {
+          if (projData && Array.isArray(projData)) {
             setProjects(projData);
             setCurrentProject(prev => {
-              if (!prev) return null;
+              if (!prev) return projData[0] || null;
               const updated = projData.find(p => p.id === prev.id || String(p.id) === String(prev.id));
-              return updated || prev;
+              return updated || projData[0] || prev;
             });
           }
         }
@@ -629,55 +629,87 @@ export const AppProvider = ({ children }) => {
       completedTasks: 0,
       openIssues: 0,
       overdueTasks: 0,
-      lead: currentUser?.name || 'Manager',
-      color: projData.color || '#2563eb'
+      lead: currentUser?.fullname || currentUser?.name || 'Root Administrator',
+      leadId: currentUser?.id ? String(currentUser.id) : '1',
+      color: projData.color || '#2563eb',
+      inviteCode: `INV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      memberEmails: currentUser?.email || currentUser?.emailid || '',
+      memberIds: currentUser?.id ? String(currentUser.id) : '1'
     };
 
+    let savedProj = newProj;
     try {
-      await fetch(`${API_BASE_URL}/projects`, {
+      const activeUrl = apiUrl || API_BASE_URL;
+      const res = await fetch(`${activeUrl}/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(newProj)
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) {
+          savedProj = data;
+        }
+      } else {
+        const errText = await res.text();
+        console.error('Backend rejected project save:', res.status, errText);
+        throw new Error(`Server returned ${res.status}: ${errText || 'Failed to save project'}`);
+      }
     } catch (e) {
-      console.warn('Persisted project locally:', e);
+      console.error('Persisted project error:', e);
+      throw e;
     }
 
-    setProjects(prev => [newProj, ...prev]);
-    setCurrentProject(newProj);
-    return newProj;
+    setProjects(prev => {
+      const filtered = prev.filter(p => p.id !== savedProj.id);
+      return [savedProj, ...filtered];
+    });
+    setCurrentProject(savedProj);
+    return savedProj;
   };
 
   const updateProject = async (projId, updatedFields) => {
-    let updatedProj = null;
-    setProjects(prev => prev.map(p => {
-      if (p.id === projId) {
-        updatedProj = { ...p, ...updatedFields };
-        return updatedProj;
+    const existing = projects.find(p => p.id === projId || String(p.id) === String(projId)) || editingProject || currentProject || {};
+    const fullUpdatedProj = { ...existing, ...updatedFields, id: projId };
+
+    try {
+      const activeUrl = apiUrl || API_BASE_URL;
+      const res = await fetch(`${activeUrl}/projects/${projId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(fullUpdatedProj)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved && saved.id) {
+          setProjects(prev => prev.map(p => (p.id === saved.id || String(p.id) === String(saved.id)) ? saved : p));
+          if (currentProject?.id === saved.id || String(currentProject?.id) === String(saved.id)) {
+            setCurrentProject(saved);
+          }
+          return saved;
+        }
+      } else {
+        const errText = await res.text();
+        console.error('Backend rejected project update:', res.status, errText);
+        throw new Error(`Server returned ${res.status}: ${errText || 'Failed to update project'}`);
       }
-      return p;
-    }));
-
-    if (currentProject?.id === projId && updatedProj) {
-      setCurrentProject(updatedProj);
+    } catch (e) {
+      console.error('Project update error:', e);
+      throw e;
     }
 
-    if (updatedProj) {
-      try {
-        await fetch(`${API_BASE_URL}/projects/${projId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedProj)
-        });
-      } catch (e) {}
+    setProjects(prev => prev.map(p => (p.id === projId || String(p.id) === String(projId)) ? fullUpdatedProj : p));
+    if (currentProject?.id === projId || String(currentProject?.id) === String(projId)) {
+      setCurrentProject(fullUpdatedProj);
     }
+    return fullUpdatedProj;
   };
 
   const deleteProject = async (projId) => {
-    const remainingProjects = projects.filter(p => p.id !== projId);
+    const remainingProjects = projects.filter(p => p.id !== projId && String(p.id) !== String(projId));
     setProjects(remainingProjects);
 
-    if (currentProject?.id === projId) {
+    if (currentProject?.id === projId || String(currentProject?.id) === String(projId)) {
       if (remainingProjects.length > 0) {
         setCurrentProject(remainingProjects[0]);
       } else {
@@ -686,10 +718,14 @@ export const AppProvider = ({ children }) => {
     }
 
     try {
-      await fetch(`${API_BASE_URL}/projects/${projId}`, {
-        method: 'DELETE'
+      const activeUrl = apiUrl || API_BASE_URL;
+      await fetch(`${activeUrl}/projects/${projId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Backend deleteProject error:', e);
+    }
   };
 
   // Helper to test if task is assigned to user
@@ -735,39 +771,56 @@ export const AppProvider = ({ children }) => {
     };
     setNotifications(prev => [newNotif, ...prev]);
 
-    fetch(`${API_BASE_URL}/notifications`, {
+    const activeUrl = apiUrl || API_BASE_URL;
+    fetch(`${activeUrl}/notifications`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(newNotif)
     }).catch(() => {});
   };
 
   const markNotificationRead = (notifId) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
-    fetch(`${API_BASE_URL}/notifications/${notifId}/read`, {
-      method: 'PUT'
+    fetch(`${activeUrl}/notifications/${notifId}/read`, {
+      method: 'PUT',
+      headers: getHeaders()
     }).catch(() => {});
   };
 
   const markAllNotificationsRead = () => {
+    const activeUrl = apiUrl || API_BASE_URL;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    fetch(`${API_BASE_URL}/notifications/read-all`, {
+    fetch(`${activeUrl}/notifications/read-all`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ userEmail: currentUser?.email, userId: currentUser?.id })
     }).catch(() => {});
   };
 
   // Create Task REST Persist
   const createTask = async (newTaskData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     const taskId = `TASK-${Date.now()}`;
     const activeProject = currentProject || (projects.length > 0 ? projects[0] : null);
     const activeSprint = currentSprint || (sprints.length > 0 ? sprints[0] : null);
 
-    // Resolve assigned user reliably using String comparison
-    const assignedUser = users.find(u => String(u.id) === String(newTaskData.assigneeId)) || 
-                         users.find(u => u.email === newTaskData.assigneeEmail) || 
-                         currentUser;
+    // Resolve assigned user reliably: ONLY when explicitly provided, NEVER default to currentUser
+    const hasExplicitAssignee = Boolean(
+      (newTaskData.assigneeId && String(newTaskData.assigneeId).trim()) ||
+      (newTaskData.assigneeIds && newTaskData.assigneeIds.length > 0) ||
+      (newTaskData.assigneeEmail && String(newTaskData.assigneeEmail).trim())
+    );
+
+    let assignedUser = null;
+    if (hasExplicitAssignee) {
+      assignedUser = users.find(u => String(u.id) === String(newTaskData.assigneeId)) || 
+                     users.find(u => u.email === newTaskData.assigneeEmail) || 
+                     null;
+    }
+
+    const taskSprintId = newTaskData.sprintId !== undefined ? newTaskData.sprintId : (activeSprint?.id || '');
+    const matchedSprint = sprints.find(s => String(s.id) === String(taskSprintId));
 
     const task = {
       id: taskId,
@@ -775,13 +828,13 @@ export const AppProvider = ({ children }) => {
       description: newTaskData.description || '',
       status: newTaskData.status || 'Backlog',
       priority: newTaskData.priority || 'Medium',
-      assigneeId: newTaskData.assigneeId || assignedUser?.id || currentUser?.id,
-      assigneeName: newTaskData.assigneeName || assignedUser?.name || currentUser?.name || 'Unassigned',
-      assigneeAvatar: newTaskData.assigneeAvatar || assignedUser?.avatar || currentUser?.avatar,
-      reporterId: currentUser?.id,
+      assigneeId: hasExplicitAssignee ? (newTaskData.assigneeId || (assignedUser ? assignedUser.id : '')) : '',
+      assigneeName: hasExplicitAssignee ? (newTaskData.assigneeName || (assignedUser ? assignedUser.name : 'Unassigned')) : 'Unassigned',
+      assigneeAvatar: hasExplicitAssignee ? (newTaskData.assigneeAvatar || (assignedUser ? assignedUser.avatar : '')) : '',
+      reporterId: currentUser?.id || '',
       reporterName: currentUser?.name || 'Manager',
-      sprintId: newTaskData.sprintId || activeSprint?.id || 'SPR-08',
-      sprintName: sprints.find(s => String(s.id) === String(newTaskData.sprintId))?.name || activeSprint?.name || 'Sprint 08',
+      sprintId: taskSprintId,
+      sprintName: matchedSprint ? matchedSprint.name : (taskSprintId ? 'Sprint' : ''),
       projectId: newTaskData.projectId || activeProject?.id || 'PRJ-101',
       projectName: projects.find(p => String(p.id) === String(newTaskData.projectId))?.name || activeProject?.name || 'Core Platform',
       labels: newTaskData.labels || ['Feature'],
@@ -790,12 +843,12 @@ export const AppProvider = ({ children }) => {
       dueDate: newTaskData.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       updatedAt: new Date().toISOString(),
       testingStatus: 'Pending Testing',
-      testerId: currentUser?.id,
-      testerName: currentUser?.name,
+      testerId: currentUser?.id || '',
+      testerName: currentUser?.name || '',
       hasIssue: false
     };
 
-    // Trigger Notification to Assigned User(s)
+    // Trigger Notification to Assigned User(s) if explicitly assigned
     const targetAssigneeIds = newTaskData.assigneeIds && Array.isArray(newTaskData.assigneeIds)
       ? newTaskData.assigneeIds.map(String)
       : (task.assigneeId ? String(task.assigneeId).split(',').map(s => s.trim()) : []);
@@ -813,22 +866,25 @@ export const AppProvider = ({ children }) => {
       }
     });
 
-    try {
-      await fetch(`${API_BASE_URL}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(task)
-      });
-    } catch (e) {
-      console.warn('Persisted locally:', e);
+    let savedTask = task;
+    const res = await fetch(`${activeUrl}/tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(task)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to create task (${res.status})`);
     }
+    savedTask = await res.json();
 
-    setTasks(prev => [task, ...prev]);
-    return task;
+    setTasks(prev => [savedTask, ...prev]);
+    return savedTask;
   };
 
   // Update Task Status REST Persist
   const updateTaskStatus = async (taskId, newStatus) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     setTasks(prev => prev.map(t => t.id === taskId ? {
       ...t,
       status: newStatus,
@@ -838,73 +894,93 @@ export const AppProvider = ({ children }) => {
     try {
       const targetTask = tasks.find(t => t.id === taskId);
       if (targetTask) {
-        await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        await fetch(`${activeUrl}/tasks/${taskId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
           body: JSON.stringify({ ...targetTask, status: newStatus })
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Backend updateTaskStatus fallback:', e);
+    }
   };
 
   const updateTask = async (taskId, updatedFields) => {
-    let updatedTask = null;
-    const previousTask = tasks.find(t => t.id === taskId);
+    const activeUrl = apiUrl || API_BASE_URL;
+    const existingTask = tasks.find(t => t.id === taskId) || (editingTask?.id === taskId ? editingTask : null) || {};
+    const updatedTask = {
+      ...existingTask,
+      ...updatedFields,
+      id: taskId,
+      updatedAt: new Date().toISOString()
+    };
 
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        updatedTask = { ...t, ...updatedFields, updatedAt: new Date().toISOString() };
-        return updatedTask;
+    // Update state immediately
+    setTasks(prev => {
+      const exists = prev.some(t => t.id === taskId);
+      if (exists) {
+        return prev.map(t => t.id === taskId ? updatedTask : t);
       }
-      return t;
-    }));
+      return [updatedTask, ...prev];
+    });
 
-    if (updatedTask) {
-      // Check newly assigned users and trigger notification
-      const newAssigneeIds = updatedTask.assigneeIds && Array.isArray(updatedTask.assigneeIds)
-        ? updatedTask.assigneeIds.map(String)
-        : (updatedTask.assigneeId ? String(updatedTask.assigneeId).split(',').map(s => s.trim()) : []);
+    if (editingTask && editingTask.id === taskId) {
+      setEditingTask(updatedTask);
+    }
 
-      const oldAssigneeIds = previousTask?.assigneeIds && Array.isArray(previousTask.assigneeIds)
-        ? previousTask.assigneeIds.map(String)
-        : (previousTask?.assigneeId ? String(previousTask.assigneeId).split(',').map(s => s.trim()) : []);
+    // Check newly assigned users and trigger notification
+    const newAssigneeIds = updatedTask.assigneeIds && Array.isArray(updatedTask.assigneeIds)
+      ? updatedTask.assigneeIds.map(String)
+      : (updatedTask.assigneeId ? String(updatedTask.assigneeId).split(',').map(s => s.trim()) : []);
 
-      newAssigneeIds.forEach(uId => {
-        if (!oldAssigneeIds.includes(uId)) {
-          const targetUser = users.find(u => String(u.id) === String(uId));
-          if (targetUser && targetUser.id !== currentUser?.id) {
-            addNotification({
-              userId: targetUser.id,
-              userEmail: targetUser.email,
-              title: 'Task Assigned To You',
-              message: `${currentUser?.name || 'Manager'} assigned task "${updatedTask.title}" (${updatedTask.id}) to ${targetUser?.name || 'you'}.`,
-              linkTaskId: updatedTask.id
-            });
-          }
+    const oldAssigneeIds = existingTask?.assigneeIds && Array.isArray(existingTask.assigneeIds)
+      ? existingTask.assigneeIds.map(String)
+      : (existingTask?.assigneeId ? String(existingTask.assigneeId).split(',').map(s => s.trim()) : []);
+
+    newAssigneeIds.forEach(uId => {
+      if (!oldAssigneeIds.includes(uId)) {
+        const targetUser = users.find(u => String(u.id) === String(uId));
+        if (targetUser && targetUser.id !== currentUser?.id) {
+          addNotification({
+            userId: targetUser.id,
+            userEmail: targetUser.email,
+            title: 'Task Assigned To You',
+            message: `${currentUser?.name || 'Manager'} assigned task "${updatedTask.title}" (${updatedTask.id}) to ${targetUser?.name || 'you'}.`,
+            linkTaskId: updatedTask.id
+          });
         }
+      }
+    });
+
+    try {
+      const res = await fetch(`${activeUrl}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(updatedTask)
       });
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedTask)
-        });
-        if (res.ok) {
-          const saved = await res.json();
-          setTasks(prev => prev.map(t => t.id === saved.id ? saved : t));
+      if (res.ok) {
+        const saved = await res.json();
+        setTasks(prev => prev.map(t => t.id === saved.id ? saved : t));
+        if (editingTask && editingTask.id === saved.id) {
+          setEditingTask(saved);
         }
-      } catch (e) {
-        console.warn('Backend updateTask error:', e);
+        return saved;
+      } else {
+        throw new Error(`Failed to update task (${res.status})`);
       }
+    } catch (e) {
+      console.warn('Backend updateTask error:', e);
+      throw e;
     }
   };
 
   const deleteTask = async (taskId) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     setTasks(prev => prev.filter(t => t.id !== taskId));
     try {
-      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: 'DELETE'
+      await fetch(`${activeUrl}/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
       });
     } catch (e) {
       console.warn('Backend deleteTask error:', e);
@@ -913,6 +989,7 @@ export const AppProvider = ({ children }) => {
 
   // Create Issue / Bug REST Persist
   const createIssue = async (bugData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     const activeProject = currentProject || (projects.length > 0 ? projects[0] : null);
     const assignedUser = users.find(u => String(u.id) === String(bugData.assigneeId) || u.email === bugData.assigneeId);
     const linkedTask = tasks.find(t => String(t.id) === String(bugData.linkedTaskId));
@@ -945,25 +1022,29 @@ export const AppProvider = ({ children }) => {
     };
 
     if (bugData.linkedTaskId) {
-      updateTask(bugData.linkedTaskId, { hasIssue: true });
+      updateTask(bugData.linkedTaskId, { hasIssue: true }).catch(() => {});
     }
 
-    try {
-      await fetch(`${API_BASE_URL}/issues`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newBug)
-      });
-    } catch (e) {}
+    let savedBug = newBug;
+    const res = await fetch(`${activeUrl}/issues`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(newBug)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to create issue (${res.status})`);
+    }
+    savedBug = await res.json();
 
     setIssues(prev => {
-      const nextIssues = [newBug, ...prev];
+      const nextIssues = [savedBug, ...prev];
       try {
         localStorage.setItem('standupflow_issues', JSON.stringify(nextIssues));
       } catch (e) {}
       return nextIssues;
     });
-    return newBug;
+    return savedBug;
   };
 
   const sendChatMessage = async (msgData) => {
@@ -994,7 +1075,7 @@ export const AppProvider = ({ children }) => {
     try {
       await fetch(`${activeUrl}/chat/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(newMsg)
       });
     } catch (e) {}
@@ -1027,7 +1108,8 @@ export const AppProvider = ({ children }) => {
 
     try {
       const res = await fetch(`${activeUrl}/chat/messages/${messageId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeaders()
       });
       if (res.ok) {
         const deletedMsg = await res.json();
@@ -1051,6 +1133,7 @@ export const AppProvider = ({ children }) => {
 
   const markChatAsRead = async (contactId) => {
     if (!currentUser || !contactId) return;
+    const activeUrl = apiUrl || API_BASE_URL;
 
     setChatMessages(prev => {
       const updated = prev.map(msg => {
@@ -1066,13 +1149,15 @@ export const AppProvider = ({ children }) => {
     });
 
     try {
-      await fetch(`${API_BASE_URL}/chat/messages/read?senderId=${encodeURIComponent(contactId)}&recipientId=${encodeURIComponent(currentUser.id)}`, {
-        method: 'PUT'
+      await fetch(`${activeUrl}/chat/messages/read?senderId=${encodeURIComponent(contactId)}&recipientId=${encodeURIComponent(currentUser.id)}`, {
+        method: 'PUT',
+        headers: getHeaders()
       });
     } catch (e) {}
   };
 
   const createChatChannel = async (channelData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     const newChannel = {
       id: `CH-${Date.now()}`,
       name: channelData.name.toLowerCase().replace(/\s+/g, '-'),
@@ -1086,9 +1171,9 @@ export const AppProvider = ({ children }) => {
     setChatChannels(prev => [...prev, newChannel]);
 
     try {
-      await fetch(`${API_BASE_URL}/chat/channels`, {
+      await fetch(`${activeUrl}/chat/channels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(newChannel)
       });
     } catch (e) {}
@@ -1096,41 +1181,92 @@ export const AppProvider = ({ children }) => {
     return newChannel;
   };
 
-  const updateIssueState = (issueId, newState) => {
+  const updateIssueState = async (issueId, newState) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     setIssues(prev => prev.map(i => i.id === issueId ? { ...i, state: newState } : i));
+    try {
+      await fetch(`${activeUrl}/issues/${issueId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ state: newState })
+      });
+    } catch (e) {
+      console.warn('Update issue state backend sync fallback:', e);
+    }
   };
 
   const createSprint = async (sprintData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
     const activeProject = currentProject || (projects.length > 0 ? projects[0] : null);
     const sprintId = `SPR-${Date.now()}`;
     const newSprint = {
       id: sprintId,
       name: sprintData.name,
       projectId: sprintData.projectId || activeProject?.id || 'PRJ-101',
-      projectName: activeProject?.name || 'Default Project',
+      projectName: sprintData.projectName || activeProject?.name || 'Default Project',
       goal: sprintData.goal || '',
       startDate: sprintData.startDate,
       endDate: sprintData.endDate,
-      status: 'Planning',
+      status: sprintData.status || 'Planning',
       totalTasks: 0,
       completedTasks: 0,
-      storyPoints: 0,
+      storyPoints: parseInt(sprintData.storyPoints) || 0,
       completedStoryPoints: 0
     };
 
+    let savedSprint = newSprint;
+    const res = await fetch(`${activeUrl}/sprints`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(newSprint)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to create sprint (${res.status})`);
+    }
+    savedSprint = await res.json();
+
+    setSprints(prev => [...prev, savedSprint]);
+    if (!currentSprint) setCurrentSprint(savedSprint);
+    return savedSprint;
+  };
+
+  const updateSprint = async (sprintId, sprintData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    setSprints(prev => prev.map(s => s.id === sprintId ? { ...s, ...sprintData } : s));
+    if (currentSprint?.id === sprintId) {
+      setCurrentSprint(prev => ({ ...prev, ...sprintData }));
+    }
     try {
-      await fetch(`${API_BASE_URL}/sprints`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSprint)
+      const res = await fetch(`${activeUrl}/sprints/${sprintId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(sprintData)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSprints(prev => prev.map(s => s.id === updated.id ? updated : s));
+        return updated;
+      }
+    } catch (e) {
+      console.warn('Backend updateSprint fallback:', e);
+    }
+  };
+
+  const deleteSprint = async (sprintId) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    setSprints(prev => prev.filter(s => s.id !== sprintId));
+    if (currentSprint?.id === sprintId) {
+      setCurrentSprint(null);
+    }
+    try {
+      await fetch(`${activeUrl}/sprints/${sprintId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
       });
     } catch (e) {
-      console.warn('Backend sprint save failed, fallback to local state:', e);
+      console.warn('Backend deleteSprint fallback:', e);
     }
-
-    setSprints(prev => [...prev, newSprint]);
-    if (!currentSprint) setCurrentSprint(newSprint);
-    return newSprint;
   };
 
   // Team Invitations State & Persistence Handlers
@@ -1147,8 +1283,9 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUser) return;
     const fetchUserInvitations = async () => {
+      const activeUrl = apiUrl || API_BASE_URL;
       try {
-        const res = await fetch(`${API_BASE_URL}/invitations`);
+        const res = await fetch(`${activeUrl}/invitations`, { headers: getHeaders() });
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list) && list.length > 0) {
@@ -1182,10 +1319,11 @@ export const AppProvider = ({ children }) => {
       inviteeEmail: email
     };
 
+    const activeUrl = apiUrl || API_BASE_URL;
     try {
-      const res = await fetch(`${API_BASE_URL}/invitations/send`, {
+      const res = await fetch(`${activeUrl}/invitations/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -1237,7 +1375,7 @@ export const AppProvider = ({ children }) => {
 
         fetch(`${activeUrl}/projects/${p.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
           body: JSON.stringify(updated)
         }).catch(() => {});
 
@@ -1251,11 +1389,12 @@ export const AppProvider = ({ children }) => {
   const acceptInvitation = async (invitationId) => {
     if (!currentUser) return { success: false };
     const targetInv = invitations.find(i => i.id === invitationId);
-    
+    const activeUrl = apiUrl || API_BASE_URL;
+
     try {
-      await fetch(`${API_BASE_URL}/invitations/${invitationId}/accept`, {
+      await fetch(`${activeUrl}/invitations/${invitationId}/accept`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({ email: currentUser.email })
       });
     } catch (e) {}
@@ -1299,9 +1438,9 @@ export const AppProvider = ({ children }) => {
         setProjects(prev => prev.map(p => p.id === targetProj.id ? updatedProj : p));
         setCurrentProject(updatedProj);
 
-        fetch(`${API_BASE_URL}/projects/${targetProj.id}`, {
+        fetch(`${activeUrl}/projects/${targetProj.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
           body: JSON.stringify(updatedProj)
         }).catch(() => {});
       }

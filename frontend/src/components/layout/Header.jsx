@@ -86,6 +86,7 @@ export const Header = () => {
         <div className="flex items-center space-x-2.5 shrink-0">
           {/* 1. Expand/Collapse Toggle Button (Fixed 25px x 25px) */}
           <button
+            id="sidebar-toggle-btn"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-[25px] h-[25px] flex items-center justify-center p-0.5 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
             title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
@@ -123,7 +124,7 @@ export const Header = () => {
         <div className="h-6 w-[1px] bg-slate-200 shrink-0 mx-1" />
 
         {/* Global Search Bar (Expanded Width: max-w-2xl with margin gap) */}
-        <div className="relative flex-1 max-w-2xl min-w-[240px]">
+        <div id="global-search-bar" className="relative flex-1 max-w-2xl min-w-[240px]">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -203,7 +204,7 @@ export const Header = () => {
                   className="w-full text-left px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center space-x-2 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5 text-blue-600" />
-                  <span>+ Create New Project</span>
+                  <span>Create New Project</span>
                 </button>
               </div>
             </div>
@@ -211,54 +212,60 @@ export const Header = () => {
         </div>
 
         {/* Console Role Badge */}
-        <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center space-x-1.5 ${badgeStyle}`}>
+        <div id="role-badge" className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center space-x-1.5 ${badgeStyle}`}>
           <RoleIcon className="w-3.5 h-3.5" />
           <span>{displayRoleName}</span>
         </div>
 
         {/* Quick Action Button: + New Task / + New Sprint */}
-        {currentRole === 'TESTER' ? (
-          <button
-            onClick={() => setIsReportBugModalOpen(true)}
-            className="flex items-center space-x-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all"
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Report Bug</span>
-          </button>
-        ) : (
-          <div className="flex items-center space-x-2">
+        <div id="quick-actions-bar" className="flex items-center space-x-2">
+          {currentRole === 'TESTER' ? (
             <button
-              onClick={() => !hasNoProjects && setIsCreateSprintModalOpen(true)}
-              disabled={hasNoProjects}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                hasNoProjects
-                  ? 'bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed border border-slate-300'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
-              }`}
-              title={hasNoProjects ? "Create a project workspace first before creating sprints" : "Create New Sprint Cycle"}
+              id="quick-report-bug-btn"
+              onClick={() => setIsReportBugModalOpen(true)}
+              className="flex items-center space-x-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all"
             >
-              <Zap className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New Sprint</span>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Report Bug</span>
             </button>
-            <button
-              onClick={() => !hasNoProjects && setIsCreateTaskModalOpen(true)}
-              disabled={hasNoProjects}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                hasNoProjects
-                  ? 'bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed border border-slate-300'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
-              }`}
-              title={hasNoProjects ? "Create a project workspace first before creating tasks" : "Create New Task"}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Task</span>
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center space-x-2">
+              <button
+                id="quick-new-sprint-btn"
+                onClick={() => !hasNoProjects && setIsCreateSprintModalOpen(true)}
+                disabled={hasNoProjects}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  hasNoProjects
+                    ? 'bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed border border-slate-300'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
+                }`}
+                title={hasNoProjects ? "Create a project workspace first before creating sprints" : "Create New Sprint Cycle"}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">New Sprint</span>
+              </button>
+              <button
+                id="quick-new-task-btn"
+                onClick={() => !hasNoProjects && setIsCreateTaskModalOpen(true)}
+                disabled={hasNoProjects}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  hasNoProjects
+                    ? 'bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed border border-slate-300'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                }`}
+                title={hasNoProjects ? "Create a project workspace first before creating tasks" : "Create New Task"}
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New Task</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Notifications Popover */}
         <div className="relative">
           <button
+            id="notifications-btn"
             onClick={() => setIsNotifOpen(!isNotifOpen)}
             className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 relative transition-colors"
             title="Notifications"
@@ -314,6 +321,7 @@ export const Header = () => {
         {/* User Profile Dropdown */}
         <div className="relative pl-1">
           <button
+            id="profile-menu"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center space-x-2 p-1 rounded-lg hover:bg-slate-100 transition-colors"
           >

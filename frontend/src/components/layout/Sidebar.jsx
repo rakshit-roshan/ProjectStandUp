@@ -36,7 +36,8 @@ export const Sidebar = () => {
     issues,
     notifications,
     hasPermission,
-    getUserRoleName
+    getUserRoleName,
+    setIsOnboardingOpen
   } = useApp();
 
   const [activeAccordion, setActiveAccordion] = useState(null); // 'tasks' | 'management' | 'testing' | 'admin' | null
@@ -92,6 +93,7 @@ export const Sidebar = () => {
             {/* Home */}
             {hasPermission('dashboard') && (
               <button
+                id="nav-home"
                 onClick={() => {
                   setActiveAccordion(null);
                   if (currentRole === 'DEVELOPER') navigateTo('developer_workspace');
@@ -114,6 +116,7 @@ export const Sidebar = () => {
             {/* Projects */}
             {hasPermission('projects') && (
               <button
+                id="nav-projects"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('project_health');
@@ -134,6 +137,7 @@ export const Sidebar = () => {
             {/* Team Members */}
             {hasPermission('team_members') && (
               <button
+                id="nav-team-members"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('team_members');
@@ -153,6 +157,7 @@ export const Sidebar = () => {
             {/* Chats */}
             {hasPermission('chat') && (
               <button
+                id="nav-chat"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('chat');
@@ -173,6 +178,7 @@ export const Sidebar = () => {
             {/* Issues Registry */}
             {hasPermission('issues') && (
               <button
+                id="nav-issues"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('issues');
@@ -200,6 +206,7 @@ export const Sidebar = () => {
             {/* Team Monitor */}
             {hasPermission('monitor') && (
               <button
+                id="nav-monitor"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('monitor');
@@ -220,6 +227,7 @@ export const Sidebar = () => {
             {/* Work Health */}
             {hasPermission('employee_health') && (
               <button
+                id="nav-employee-health"
                 onClick={() => {
                   setActiveAccordion(null);
                   navigateTo('employee_health');
@@ -241,6 +249,7 @@ export const Sidebar = () => {
             {(hasPermission('tasks_kanban') || hasPermission('tasks_table')) && (
               <div>
                 <button
+                  id="nav-tasks-queue"
                   onClick={() => {
                     if (!sidebarCollapsed) {
                       toggleAccordion('tasks');
@@ -302,6 +311,7 @@ export const Sidebar = () => {
           <div>
             <nav className="space-y-1">
               <button
+                id="nav-management-console"
                 onClick={() => {
                   if (!sidebarCollapsed) {
                     toggleAccordion('management');
@@ -373,6 +383,7 @@ export const Sidebar = () => {
           <div>
             <nav className="space-y-1">
               <button
+                id="nav-testing"
                 onClick={() => {
                   if (!sidebarCollapsed) {
                     toggleAccordion('testing');
@@ -422,6 +433,7 @@ export const Sidebar = () => {
           <div>
             <nav className="space-y-1">
               <button
+                id="nav-admin"
                 onClick={() => {
                   if (!sidebarCollapsed) {
                     toggleAccordion('admin');
@@ -486,6 +498,7 @@ export const Sidebar = () => {
           )}
           <nav className="space-y-1 mt-1">
             <button
+              id="nav-notifications"
               onClick={() => {
                 setActiveAccordion(null);
                 navigateTo('notifications');
@@ -510,6 +523,7 @@ export const Sidebar = () => {
             </button>
 
             <button
+              id="nav-settings"
               onClick={() => {
                 setActiveAccordion(null);
                 navigateTo('settings');
@@ -526,6 +540,7 @@ export const Sidebar = () => {
             </button>
 
             <button
+              id="nav-console-tour"
               onClick={() => setIsOnboardingOpen(true)}
               disabled={!isAssigned}
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-all ${disabledClass}`}

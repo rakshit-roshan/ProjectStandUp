@@ -15,6 +15,7 @@ export const EditProjectModal = () => {
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#2563eb');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (editingProject) {
@@ -29,16 +30,23 @@ export const EditProjectModal = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSubmitting) return;
 
-    await updateProject(editingProject.id, {
-      name: name.trim(),
-      code: code.trim().toUpperCase() || editingProject.code,
-      description: description.trim(),
-      color
-    });
+    setIsSubmitting(true);
+    try {
+      await updateProject(editingProject.id, {
+        name: name.trim(),
+        code: code.trim().toUpperCase() || editingProject.code,
+        description: description.trim(),
+        color
+      });
 
-    setIsEditProjectModalOpen(false);
+      setIsEditProjectModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update project:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -131,16 +139,18 @@ export const EditProjectModal = () => {
             <div className="flex space-x-2">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setIsEditProjectModalOpen(false)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors"
+                disabled={isSubmitting}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors cursor-pointer"
               >
-                Save Changes
+                {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
               </button>
             </div>
           </div>

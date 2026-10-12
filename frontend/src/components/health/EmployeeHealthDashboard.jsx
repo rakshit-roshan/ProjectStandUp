@@ -47,7 +47,7 @@ export const EmployeeHealthDashboard = () => {
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div id="health-header" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-emerald-50 text-emerald-600 rounded-md">
             <HeartPulse className="w-5 h-5" />
@@ -81,7 +81,7 @@ export const EmployeeHealthDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Columns: Real Recorded Work Sessions or Empty State */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-2xs space-y-4">
+          <div id="health-work-log" className="bg-white rounded-lg border border-slate-200 p-5 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h2 className="text-sm font-bold text-slate-900">{displayName}'s Recorded Work Log</h2>
@@ -159,7 +159,7 @@ export const EmployeeHealthDashboard = () => {
 
         {/* Right Column: Real Database Metrics for Selected User */}
         <div className="space-y-4">
-          <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-4 text-xs">
+          <div id="health-metrics-card" className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-4 text-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs">
                 {displayName}'s Real Metrics

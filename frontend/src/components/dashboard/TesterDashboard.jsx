@@ -193,10 +193,22 @@ export const TesterDashboard = () => {
                     <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{task.description}</div>
                   </td>
                   <td className="p-3">
-                    <div className="flex items-center space-x-1.5">
-                      <img src={task.assigneeAvatar} alt={task.assigneeName} className="w-5 h-5 rounded-full object-cover" />
-                      <span className="font-medium text-slate-700">{task.assigneeName}</span>
-                    </div>
+                    {(!task.assigneeId || !String(task.assigneeId).trim() || task.assigneeName === 'Unassigned') ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Unassigned">
+                        Unassigned
+                      </span>
+                    ) : (
+                      <div className="flex items-center space-x-1.5">
+                        {task.assigneeAvatar ? (
+                          <img src={task.assigneeAvatar} alt={task.assigneeName} className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200" />
+                        ) : (
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {task.assigneeName?.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="font-medium text-slate-700">{task.assigneeName}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">
                     <div className="text-slate-700">{task.projectName}</div>

@@ -41,6 +41,29 @@ public class TaskController {
 
     @PostMapping
     public TaskItem createTask(@RequestBody TaskItem task) {
+        if (task.getId() == null || task.getId().isBlank()) {
+            task.setId("TASK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
+        if (task.getAssigneeId() == null || task.getAssigneeId().isBlank()) {
+            task.setAssigneeId("");
+            task.setAssigneeName("Unassigned");
+            task.setAssigneeAvatar("");
+        }
+        if (task.getStatus() == null || task.getStatus().isBlank()) {
+            task.setStatus("Backlog");
+        }
+        if (task.getTestingStatus() == null || task.getTestingStatus().isBlank()) {
+            task.setTestingStatus("Pending Testing");
+        }
+        if (task.getHasIssue() == null) {
+            task.setHasIssue(false);
+        }
+        if (task.getStoryPoints() == null) {
+            task.setStoryPoints(3);
+        }
+        if (task.getUpdatedAt() == null) {
+            task.setUpdatedAt(LocalDateTime.now().toString());
+        }
         TaskItem saved = taskRepository.save(task);
         createNotificationsForTask(saved, "New Task Assigned");
         return saved;
@@ -49,28 +72,45 @@ public class TaskController {
     @PutMapping("/{id}")
     public ResponseEntity<TaskItem> updateTask(@PathVariable String id, @RequestBody TaskItem taskDetails) {
         return taskRepository.findById(id).map(task -> {
-            String oldAssignee = task.getAssigneeId();
+            String oldAssignee = task.getAssigneeId() != null ? task.getAssigneeId() : "";
 
-            task.setTitle(taskDetails.getTitle());
-            task.setDescription(taskDetails.getDescription());
-            task.setStatus(taskDetails.getStatus());
-            task.setPriority(taskDetails.getPriority());
-            task.setAssigneeId(taskDetails.getAssigneeId());
-            task.setAssigneeName(taskDetails.getAssigneeName());
+            if (taskDetails.getTitle() != null) task.setTitle(taskDetails.getTitle());
+            if (taskDetails.getDescription() != null) task.setDescription(taskDetails.getDescription());
+            if (taskDetails.getStatus() != null) task.setStatus(taskDetails.getStatus());
+            if (taskDetails.getPriority() != null) task.setPriority(taskDetails.getPriority());
+            if (taskDetails.getAssigneeId() != null) {
+                task.setAssigneeId(taskDetails.getAssigneeId());
+                if (taskDetails.getAssigneeId().isBlank()) {
+                    task.setAssigneeName("Unassigned");
+                    task.setAssigneeAvatar("");
+                }
+            }
+            if (taskDetails.getAssigneeName() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
+                task.setAssigneeName(taskDetails.getAssigneeName());
+            }
+            if (taskDetails.getAssigneeAvatar() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
+                task.setAssigneeAvatar(taskDetails.getAssigneeAvatar());
+            }
             if (taskDetails.getReporterId() != null) task.setReporterId(taskDetails.getReporterId());
             if (taskDetails.getReporterName() != null) task.setReporterName(taskDetails.getReporterName());
-            if (taskDetails.getAssigneeAvatar() != null) task.setAssigneeAvatar(taskDetails.getAssigneeAvatar());
             if (taskDetails.getSprintId() != null) task.setSprintId(taskDetails.getSprintId());
             if (taskDetails.getSprintName() != null) task.setSprintName(taskDetails.getSprintName());
-            task.setStoryPoints(taskDetails.getStoryPoints());
-            task.setTestingStatus(taskDetails.getTestingStatus());
-            task.setDueDate(taskDetails.getDueDate());
-            task.setUpdatedAt(taskDetails.getUpdatedAt());
+            if (taskDetails.getProjectId() != null) task.setProjectId(taskDetails.getProjectId());
+            if (taskDetails.getProjectName() != null) task.setProjectName(taskDetails.getProjectName());
+            if (taskDetails.getStoryPoints() != null) task.setStoryPoints(taskDetails.getStoryPoints());
+            if (taskDetails.getStartDate() != null) task.setStartDate(taskDetails.getStartDate());
+            if (taskDetails.getDueDate() != null) task.setDueDate(taskDetails.getDueDate());
+            if (taskDetails.getTestingStatus() != null) task.setTestingStatus(taskDetails.getTestingStatus());
+            if (taskDetails.getTesterId() != null) task.setTesterId(taskDetails.getTesterId());
+            if (taskDetails.getTesterName() != null) task.setTesterName(taskDetails.getTesterName());
+            if (taskDetails.getHasIssue() != null) task.setHasIssue(taskDetails.getHasIssue());
+            if (taskDetails.getUpdatedAt() != null) task.setUpdatedAt(taskDetails.getUpdatedAt());
+            else task.setUpdatedAt(LocalDateTime.now().toString());
 
             TaskItem updated = taskRepository.save(task);
 
             // Trigger notification if assignee changed or assigned
-            if (taskDetails.getAssigneeId() != null && !taskDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
+            if (taskDetails.getAssigneeId() != null && !taskDetails.getAssigneeId().isBlank() && !taskDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
                 createNotificationsForTask(updated, "Task Assigned To You");
             }
 

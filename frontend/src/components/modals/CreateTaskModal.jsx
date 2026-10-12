@@ -16,9 +16,11 @@ export const CreateTaskModal = () => {
     getProjectMembers
   } = useApp();
 
-  const hasNoProjects = !projects || projects.length === 0 || !currentProject;
-  const projectSprints = sprints.filter(s => s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id));
-  const teamMembers = getProjectMembers(currentProject);
+  const activeProject = currentProject || (projects && projects.length > 0 ? projects[0] : null);
+  const hasNoProjects = !activeProject;
+  const projectSprints = (sprints || []).filter(s => !activeProject || !s.projectId || s.projectId === activeProject?.id || String(s.projectId) === String(activeProject?.id));
+  const availableSprints = projectSprints.length > 0 ? projectSprints : (sprints || []);
+  const teamMembers = getProjectMembers(activeProject);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -26,17 +28,20 @@ export const CreateTaskModal = () => {
   const [storyPoints, setStoryPoints] = useState(3);
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState([]);
   const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
-  const [sprintId, setSprintId] = useState(projectSprints[0]?.id || currentSprint?.id || '');
+  const [sprintId, setSprintId] = useState(availableSprints[0]?.id || currentSprint?.id || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
     if (isCreateTaskModalOpen) {
-      if (projectSprints.length > 0 && !sprintId) {
-        setSprintId(projectSprints[0]?.id);
+      setErrorMessage(null);
+      if (availableSprints.length > 0 && !sprintId) {
+        setSprintId(availableSprints[0]?.id);
       }
     } else {
       setIsAssigneeDropdownOpen(false);
     }
-  }, [isCreateTaskModalOpen, projectSprints]);
+  }, [isCreateTaskModalOpen, availableSprints]);
 
   if (!isCreateTaskModalOpen) return null;
 
@@ -53,30 +58,41 @@ export const CreateTaskModal = () => {
     if (hasNoProjects) return;
     if (!title.trim()) return;
 
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
     const assignedUsers = teamMembers.filter(u => selectedAssigneeIds.includes(u.id));
     const assigneeIdsStr = assignedUsers.map(u => u.id).join(',');
     const assigneeNamesStr = assignedUsers.length > 0 
       ? assignedUsers.map(u => u.name).join(', ') 
       : 'Unassigned';
 
-    await createTask({
-      title,
-      description,
-      priority,
-      storyPoints,
-      assigneeId: assigneeIdsStr,
-      assigneeIds: assignedUsers.map(u => u.id),
-      assigneeName: assigneeNamesStr,
-      assigneeAvatar: assignedUsers[0]?.avatar || '',
-      sprintId,
-      projectId: currentProject?.id || 'PRJ-101'
-    });
+    try {
+      await createTask({
+        title,
+        description,
+        priority,
+        storyPoints,
+        assigneeId: assigneeIdsStr,
+        assigneeIds: assignedUsers.map(u => u.id),
+        assigneeName: assigneeNamesStr,
+        assigneeAvatar: assignedUsers[0]?.avatar || '',
+        sprintId,
+        projectId: activeProject?.id || 'PRJ-101',
+        projectName: activeProject?.name || 'Default Project'
+      });
 
-    setIsCreateTaskModalOpen(false);
-    setTitle('');
-    setDescription('');
-    setSelectedAssigneeIds([]);
-    setIsAssigneeDropdownOpen(false);
+      setIsCreateTaskModalOpen(false);
+      setTitle('');
+      setDescription('');
+      setSelectedAssigneeIds([]);
+      setIsAssigneeDropdownOpen(false);
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      setErrorMessage(err.message || 'Failed to create task. Please check database connectivity.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -93,10 +109,24 @@ export const CreateTaskModal = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-xs font-semibold flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {hasNoProjects && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs font-semibold flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>No project workspace exists. Please create a project workspace first before creating tasks.</span>
+            </div>
+          )}
+
+          {activeProject && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-slate-700">
+              <span className="font-medium">Project Workspace:</span>
+              <span className="font-bold text-blue-600 font-mono">{activeProject.name} ({activeProject.code || activeProject.id})</span>
             </div>
           )}
           <div>
@@ -225,19 +255,17 @@ export const CreateTaskModal = () => {
               onChange={(e) => setSprintId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold outline-none"
             >
-              {projectSprints.length === 0 ? (
-                <option value="">No sprints in this project</option>
-              ) : (
-                projectSprints.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))
-              )}
+              <option value="">-- No Sprint (Backlog) --</option>
+              {availableSprints.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
             </select>
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => setIsCreateTaskModalOpen(false)}
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded text-xs"
             >
@@ -245,14 +273,21 @@ export const CreateTaskModal = () => {
             </button>
             <button
               type="submit"
-              disabled={hasNoProjects}
-              className={`px-4 py-1.5 text-white font-semibold rounded text-xs transition-colors ${
-                hasNoProjects
+              disabled={hasNoProjects || isSubmitting}
+              className={`px-4 py-1.5 text-white font-semibold rounded text-xs transition-colors flex items-center space-x-1.5 ${
+                hasNoProjects || isSubmitting
                   ? 'bg-slate-300 cursor-not-allowed opacity-60'
                   : 'bg-blue-600 hover:bg-blue-700 shadow-2xs'
               }`}
             >
-              Create Task
+              {isSubmitting ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block"></span>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Create Task</span>
+              )}
             </button>
           </div>
         </form>

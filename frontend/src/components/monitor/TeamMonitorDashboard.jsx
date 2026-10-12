@@ -30,7 +30,7 @@ export const TeamMonitorDashboard = () => {
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div id="monitor-header" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-50 text-blue-600 rounded-md">
             <Activity className="w-5 h-5" />
@@ -43,7 +43,7 @@ export const TeamMonitorDashboard = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <div id="monitor-kpi-cards" className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
           <div className="text-xs text-slate-500 font-medium">Total Team</div>
           <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{teamMembers.length}</div>
@@ -73,7 +73,7 @@ export const TeamMonitorDashboard = () => {
       {/* Main Grid: Workload Table & Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Team Workload Table (2 Columns) */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+        <div id="monitor-workload-table" className="lg:col-span-2 bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Team Member Workload Metrics</h2>
             <span className="text-xs text-slate-400">Sorted by workload status</span>
@@ -126,7 +126,7 @@ export const TeamMonitorDashboard = () => {
         </div>
 
         {/* Work Distribution Bar Chart */}
-        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3">
+        <div id="monitor-workload-chart" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
             Task Allocation by Member
           </h3>

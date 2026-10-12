@@ -264,7 +264,7 @@ export const SettingsView = () => {
   return (
     <div className="p-6 space-y-5 max-w-[1400px] mx-auto text-xs">
       {/* Top Banner - Clean, matching app header */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
+      <div id="settings-header" className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex items-center space-x-3.5">
         <div className="p-2.5 bg-[#93C572]/15 text-[#487230] rounded-xl border border-[#93C572]/30">
           <Settings className="w-6 h-6" />
         </div>
@@ -300,13 +300,14 @@ export const SettingsView = () => {
       )}
 
       {/* Aesthetic Sub-header Tabs */}
-      <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center gap-1">
+      <div id="settings-tabs-bar" className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center gap-1">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              id={`settings-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all cursor-pointer ${
                 isActive
@@ -326,7 +327,7 @@ export const SettingsView = () => {
         <form onSubmit={handleSaveSettings} className="space-y-6">
           {/* TAB 1: PROFILE PICTURE */}
           {activeTab === 'profile' && (
-            <div className="space-y-6 animate-in fade-in">
+            <div id="settings-profile-tab" className="space-y-6 animate-in fade-in">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                   <User className="w-4 h-4 text-[#487230]" />
@@ -413,7 +414,7 @@ export const SettingsView = () => {
 
           {/* TAB 2: PASSWORD WITH WEAK / STRONG STRENGTH CARD */}
           {activeTab === 'password' && (
-            <div className="space-y-5 animate-in fade-in w-full">
+            <div id="settings-password-tab" className="space-y-5 animate-in fade-in w-full">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                   <Lock className="w-4 h-4 text-[#487230]" />
@@ -592,7 +593,7 @@ export const SettingsView = () => {
 
           {/* TAB 3: MARIADB DATABASE */}
           {activeTab === 'mariadb' && (
-            <div className="space-y-5 animate-in fade-in max-w-2xl">
+            <div id="settings-mariadb-tab" className="space-y-5 animate-in fade-in max-w-2xl">
               <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
@@ -673,7 +674,7 @@ export const SettingsView = () => {
 
           {/* TAB 4: PORT SETTINGS */}
           {activeTab === 'ports' && (
-            <div className="space-y-5 animate-in fade-in max-w-2xl">
+            <div id="settings-ports-tab" className="space-y-5 animate-in fade-in max-w-2xl">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                   <Server className="w-4 h-4 text-[#487230]" />
@@ -730,7 +731,7 @@ export const SettingsView = () => {
 
           {/* TAB 5: READ ONLY ACCOUNT INFO */}
           {activeTab === 'readonly' && (
-            <div className="space-y-5 animate-in fade-in max-w-2xl">
+            <div id="settings-account-info" className="space-y-5 animate-in fade-in max-w-2xl">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                   <Shield className="w-4 h-4 text-slate-600" />

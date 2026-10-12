@@ -16,6 +16,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 export const SprintDetailsView = () => {
   const {
     currentSprint,
+    setCurrentSprint,
     sprints,
     tasks,
     currentProject,
@@ -23,7 +24,7 @@ export const SprintDetailsView = () => {
     navigateTo
   } = useApp();
 
-  const sprintTasks = !currentProject ? [] : tasks.filter(t => t.sprintId === currentSprint?.id && (t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id)));
+  const sprintTasks = tasks.filter(t => t.sprintId === currentSprint?.id);
 
   // Mock burndown data for 14 days sprint
   const burndownData = [
@@ -46,7 +47,7 @@ export const SprintDetailsView = () => {
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       {/* Top Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-2xs">
+      <div id="sprint-details-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center space-x-2">
             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -56,12 +57,30 @@ export const SprintDetailsView = () => {
           </div>
           <p className="text-xs text-slate-500 mt-0.5">{currentSprint?.goal || 'Sprint Goals & Execution'}</p>
         </div>
+
+        {sprints && sprints.length > 0 && (
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-semibold text-slate-500">Active Sprint:</span>
+            <select
+              value={currentSprint?.id || ''}
+              onChange={(e) => {
+                const sp = sprints.find(s => String(s.id) === String(e.target.value));
+                if (sp) setCurrentSprint(sp);
+              }}
+              className="bg-slate-50 border border-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-md outline-none focus:border-blue-500"
+            >
+              {sprints.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Burndown Chart & Sprint Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Burndown Chart (2 Columns) */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-5 space-y-4 shadow-2xs">
+        <div id="sprint-burndown-chart" className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-5 space-y-4 shadow-2xs">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
@@ -94,7 +113,7 @@ export const SprintDetailsView = () => {
 
         {/* Sprint Summary & Team Allocation */}
         <div className="space-y-4">
-          <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3 text-xs">
+          <div id="sprint-metrics-card" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3 text-xs">
             <h3 className="font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
               Sprint Metrics
             </h3>

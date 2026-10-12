@@ -42,7 +42,7 @@ export const IssuesTableView = () => {
   return (
     <div className="p-6 space-y-4 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-lg border border-slate-200 shadow-2xs">
+      <div id="issues-header" className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-lg border border-slate-200 shadow-2xs">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-red-50 text-red-600 rounded-md">
             <AlertCircle className="w-5 h-5" />
@@ -53,7 +53,7 @@ export const IssuesTableView = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div id="issues-filters" className="flex flex-wrap items-center gap-2">
           {/* State Filter */}
           <select
             value={stateFilter}
@@ -90,7 +90,7 @@ export const IssuesTableView = () => {
       </div>
 
       {/* Issues Table */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+      <div id="issues-table" className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200">

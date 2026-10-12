@@ -115,27 +115,45 @@ export const ManagerDashboard = () => {
     let list = [];
     if (task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0) {
       list = users.filter(u => task.assigneeIds.includes(u.id));
-    } else if (task.assigneeId) {
-      const ids = String(task.assigneeId).split(',').map(s => s.trim());
+    } else if (task.assigneeId && String(task.assigneeId).trim()) {
+      const ids = String(task.assigneeId).split(',').map(s => s.trim()).filter(Boolean);
       list = users.filter(u => ids.includes(u.id));
     }
+
     if (list.length === 0) {
-      list = [{
-        id: '1',
-        name: task.assigneeName || 'Unassigned',
-        avatar: task.assigneeAvatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80'
-      }];
+      if (task.assigneeName && task.assigneeName !== 'Unassigned' && task.assigneeAvatar) {
+        list = [{
+          id: task.assigneeId || 'custom',
+          name: task.assigneeName,
+          avatar: task.assigneeAvatar
+        }];
+      } else {
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Unassigned">
+            Unassigned
+          </span>
+        );
+      }
     }
 
     return (
       <div className="flex items-center -space-x-1.5 overflow-hidden" title={list.map(u => u.name).join(', ')}>
         {list.map((u, i) => (
-          <img
-            key={u.id || i}
-            src={u.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80'}
-            alt={u.name}
-            className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover"
-          />
+          u.avatar ? (
+            <img
+              key={u.id || i}
+              src={u.avatar}
+              alt={u.name}
+              className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover"
+            />
+          ) : (
+            <div
+              key={u.id || i}
+              className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center"
+            >
+              {u.name?.charAt(0).toUpperCase()}
+            </div>
+          )
         ))}
       </div>
     );
@@ -178,6 +196,7 @@ export const ManagerDashboard = () => {
       <UnassignedMemberBanner />
       {/* 1. Welcome Hero Banner matching newdesign.png without emojis */}
       <div
+        id="home-welcome-banner"
         style={{
           backgroundImage: `url(${welcomeBg})`,
           backgroundSize: 'cover',
@@ -219,7 +238,7 @@ export const ManagerDashboard = () => {
       </div>
 
       {/* 2. 6 Summary Metric Cards Grid matching newdesign.png */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div id="home-metrics-grid" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Card 1: Active Tasks */}
         <div className="bg-gradient-to-br from-blue-50/60 via-white to-white p-4 rounded-xl border border-blue-100 shadow-2xs hover:shadow-xs transition-all">
           <div className="flex items-center justify-between">
@@ -352,7 +371,7 @@ export const ManagerDashboard = () => {
         {/* LEFT COLUMN (Wider, ~68% width) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Active Sprint Overview Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-5">
+          <div id="home-sprint-overview" className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2.5">
@@ -460,7 +479,7 @@ export const ManagerDashboard = () => {
           </div>
 
           {/* Top Priority Tasks Table matching newdesign.png without emojis */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div id="home-priority-tasks" className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <Flame className="w-4 h-4 text-amber-500" />
@@ -571,7 +590,7 @@ export const ManagerDashboard = () => {
           </div>
 
           {/* All Sprints & Task Breakdown Accordion */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div id="home-sprints-accordion" className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <BarChart3 className="w-4 h-4 text-blue-600" />
@@ -696,7 +715,7 @@ export const ManagerDashboard = () => {
         {/* RIGHT COLUMN (Narrower, ~32% width) */}
         <div className="space-y-6">
           {/* Team Member Workload Card with Online/Offline Status */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div id="home-team-workload" className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <Users className="w-4 h-4 text-indigo-600" />
@@ -760,7 +779,7 @@ export const ManagerDashboard = () => {
           </div>
 
           {/* Recent Sprint Activity Card (Sequence Wise Work Done) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+          <div id="home-recent-activity" className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-blue-600" />

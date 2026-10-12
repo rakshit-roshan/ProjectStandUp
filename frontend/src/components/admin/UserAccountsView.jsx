@@ -221,7 +221,7 @@ export const UserAccountsView = () => {
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       {/* Header Bar */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div id="admin-header" className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
             <Users className="w-6 h-6" />
@@ -233,6 +233,7 @@ export const UserAccountsView = () => {
         </div>
 
         <button
+          id="admin-create-account-btn"
           onClick={() => setIsModalOpen(true)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
         >
@@ -242,7 +243,7 @@ export const UserAccountsView = () => {
       </div>
 
       {/* Search & Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div id="admin-search-stats" className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -261,7 +262,7 @@ export const UserAccountsView = () => {
       </div>
 
       {/* Accounts Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div id="admin-accounts-table" className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>

@@ -219,7 +219,7 @@ export const TeamChatView = () => {
       />
 
       {/* LEFT SIDEBAR: WHATSAPP CHAT LIST PANE */}
-      <div className="w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 h-full">
+      <div id="chat-channels-list" className="w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 h-full">
         {/* Top Header Bar */}
         <div className="h-16 px-4 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
@@ -238,6 +238,7 @@ export const TeamChatView = () => {
 
           <div className="flex items-center space-x-1">
             <button
+              id="chat-create-group"
               onClick={() => {
                 setIsGroupModalOpen(true);
                 setGroupStep(1);
@@ -469,6 +470,7 @@ export const TeamChatView = () => {
 
         {/* WhatsApp Chat Canvas Background Overlay */}
         <div 
+          id="chat-conversation-area"
           className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 custom-scrollbar relative"
           style={{
             backgroundColor: '#efeae2',
@@ -605,7 +607,7 @@ export const TeamChatView = () => {
         </div>
 
         {/* BOTTOM INPUT COMPOSER (WHATSAPP WEB FOOTER) */}
-        <div className="bg-[#f0f2f5] px-4 py-3 border-t border-slate-200 shrink-0 relative">
+        <div id="chat-input-composer" className="bg-[#f0f2f5] px-4 py-3 border-t border-slate-200 shrink-0 relative">
           {/* Pending Attachments Banner */}
           {pendingFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2.5 p-2 bg-white rounded-lg border border-slate-300 shadow-2xs">

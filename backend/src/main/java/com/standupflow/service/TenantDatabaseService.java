@@ -267,6 +267,7 @@ public class TenantDatabaseService {
             } catch (Exception ignored) {}
 
             // Table: projects
+            // Table: projects
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS projects (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "name VARCHAR(255), " +
@@ -286,21 +287,23 @@ public class TenantDatabaseService {
                     "member_ids VARCHAR(2000)" +
                     ");");
 
-            // Table: sprints
+            // Table: sprints (matches Sprint.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS sprints (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "name VARCHAR(255), " +
+                    "project_id VARCHAR(255), " +
+                    "project_name VARCHAR(255), " +
                     "goal VARCHAR(1000), " +
-                    "status VARCHAR(50), " +
                     "start_date VARCHAR(50), " +
                     "end_date VARCHAR(50), " +
-                    "total_story_points INT, " +
-                    "completed_story_points INT, " +
-                    "project_id VARCHAR(255), " +
-                    "task_ids VARCHAR(2000)" +
+                    "status VARCHAR(50), " +
+                    "total_tasks INT, " +
+                    "completed_tasks INT, " +
+                    "story_points INT, " +
+                    "completed_story_points INT" +
                     ");");
 
-            // Table: tasks
+            // Table: tasks (matches TaskItem.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS tasks (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "title VARCHAR(255), " +
@@ -326,78 +329,170 @@ public class TenantDatabaseService {
                     "has_issue BOOLEAN" +
                     ");");
 
-            // Table: issues
+            // Table: issues (matches IssueItem.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS issues (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "title VARCHAR(255), " +
                     "description VARCHAR(2000), " +
+                    "state VARCHAR(50), " +
+                    "priority VARCHAR(50), " +
                     "severity VARCHAR(50), " +
-                    "status VARCHAR(50), " +
-                    "reporter_id VARCHAR(255), " +
-                    "reporter_name VARCHAR(255), " +
                     "assignee_id VARCHAR(255), " +
                     "assignee_name VARCHAR(255), " +
-                    "task_id VARCHAR(255), " +
-                    "task_title VARCHAR(255), " +
+                    "assignee_avatar LONGTEXT, " +
+                    "reporter_id VARCHAR(255), " +
+                    "reporter_name VARCHAR(255), " +
+                    "module VARCHAR(255), " +
+                    "project_id VARCHAR(255), " +
+                    "project_name VARCHAR(255), " +
+                    "linked_task_id VARCHAR(255), " +
+                    "linked_task_title VARCHAR(255), " +
+                    "start_date VARCHAR(50), " +
+                    "due_date VARCHAR(50), " +
+                    "end_date VARCHAR(50), " +
                     "steps_to_reproduce VARCHAR(2000), " +
                     "expected_result VARCHAR(1000), " +
                     "actual_result VARCHAR(1000), " +
-                    "environment VARCHAR(255), " +
-                    "created_at VARCHAR(50), " +
-                    "resolved_at VARCHAR(50)" +
+                    "environment VARCHAR(255)" +
                     ");");
 
-            // Table: chat_channels
+            // Table: chat_channels (matches ChatChannel.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS chat_channels (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "name VARCHAR(255), " +
-                    "topic VARCHAR(500), " +
-                    "is_private BOOLEAN, " +
-                    "member_ids VARCHAR(2000)" +
+                    "type VARCHAR(50), " +
+                    "description VARCHAR(1000), " +
+                    "member_ids VARCHAR(2000), " +
+                    "created_by VARCHAR(255), " +
+                    "created_at VARCHAR(100)" +
                     ");");
 
-            // Table: chat_messages
+            // Table: chat_messages (matches ChatMessage.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS chat_messages (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "sender_id VARCHAR(255), " +
                     "sender_name VARCHAR(255), " +
                     "sender_avatar LONGTEXT, " +
-                    "content VARCHAR(4000), " +
-                    "timestamp VARCHAR(50), " +
+                    "recipient_id VARCHAR(255), " +
                     "channel_id VARCHAR(255), " +
-                    "receiver_id VARCHAR(255), " +
-                    "is_direct_message BOOLEAN, " +
-                    "is_deleted BOOLEAN DEFAULT FALSE, " +
-                    "attachment_url LONGTEXT, " +
-                    "attachment_name VARCHAR(255), " +
-                    "attachment_type VARCHAR(50)" +
+                    "content VARCHAR(4000), " +
+                    "attachments_json LONGTEXT, " +
+                    "timestamp VARCHAR(50), " +
+                    "reactions_json LONGTEXT, " +
+                    "is_read BOOLEAN DEFAULT FALSE, " +
+                    "is_deleted BOOLEAN DEFAULT FALSE" +
                     ");");
 
-            // Table: invitations
+            // Table: invitations (matches Invitation.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS invitations (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
-                    "email VARCHAR(255), " +
-                    "role VARCHAR(50), " +
-                    "company_id VARCHAR(255), " +
-                    "invite_code VARCHAR(255), " +
+                    "manager_id VARCHAR(255), " +
+                    "manager_name VARCHAR(255), " +
+                    "manager_code VARCHAR(255), " +
+                    "project_id VARCHAR(255), " +
+                    "invitee_email VARCHAR(255) NOT NULL, " +
                     "status VARCHAR(50), " +
-                    "invited_by VARCHAR(255), " +
-                    "created_at VARCHAR(50)" +
+                    "created_at DATETIME" +
                     ");");
 
-            // Table: notifications
+            // Table: notifications (matches Notification.java)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS notifications (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "user_id VARCHAR(255), " +
+                    "user_email VARCHAR(255), " +
                     "title VARCHAR(255), " +
                     "message VARCHAR(1000), " +
-                    "type VARCHAR(50), " +
-                    "read_status BOOLEAN DEFAULT FALSE, " +
-                    "created_at VARCHAR(50), " +
-                    "link VARCHAR(255)" +
+                    "reporter_name VARCHAR(255), " +
+                    "link_task_id VARCHAR(255), " +
+                    "is_read BOOLEAN DEFAULT FALSE, " +
+                    "timestamp VARCHAR(50)" +
                     ");");
 
+            // Ensure schema alignment for any existing tables with ALTER TABLE ADD COLUMN IF NOT EXISTS
+            alignExistingTenantTableSchemas(stmt);
+
             System.out.println("[TenantDatabaseService] Initialized tables for database: " + databaseName);
+        }
+    }
+
+    private void alignExistingTenantTableSchemas(Statement stmt) {
+        String[] alterStatements = new String[] {
+            // Sprints
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS total_tasks INT;",
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS completed_tasks INT;",
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS story_points INT;",
+            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS completed_story_points INT;",
+            // Tasks
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_id VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_name VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reporter_id VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee_avatar LONGTEXT;",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS story_points INT;",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date VARCHAR(50);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS testing_status VARCHAR(50);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_id VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_name VARCHAR(255);",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS has_issue BOOLEAN;",
+            // Issues
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS state VARCHAR(50);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS priority VARCHAR(50);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS severity VARCHAR(50);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS assignee_avatar LONGTEXT;",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS module VARCHAR(255);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS linked_task_id VARCHAR(255);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS linked_task_title VARCHAR(255);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS due_date VARCHAR(50);",
+            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS end_date VARCHAR(50);",
+            // Invitations
+            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_id VARCHAR(255);",
+            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_name VARCHAR(255);",
+            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_code VARCHAR(255);",
+            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
+            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS invitee_email VARCHAR(255);",
+            // Notifications
+            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);",
+            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255);",
+            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link_task_id VARCHAR(255);",
+            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS timestamp VARCHAR(50);",
+            // Chat Messages
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS recipient_id VARCHAR(255);",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel_id VARCHAR(255);",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions_json LONGTEXT;",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
+            // Chat Channels
+            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS type VARCHAR(50);",
+            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description VARCHAR(1000);",
+            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);",
+            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_at VARCHAR(100);"
+        };
+
+        for (String sql : alterStatements) {
+            try {
+                stmt.executeUpdate(sql);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    public void alignAllTenantTableSchemas(String databaseName) {
+        if (databaseName == null || databaseName.trim().isEmpty() || "standupflow_db".equalsIgnoreCase(databaseName)) return;
+        try (Connection conn = getDirectConnection(databaseName);
+             Statement stmt = conn.createStatement()) {
+            initializeTenantDatabaseTables(databaseName);
+        } catch (Exception e) {
+            System.err.println("[TenantDatabaseService] Error aligning schema for " + databaseName + ": " + e.getMessage());
         }
     }
 
