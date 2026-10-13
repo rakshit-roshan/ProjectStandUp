@@ -13,7 +13,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export const TeamMonitorDashboard = () => {
-  const { currentUser, users, tasks, workSessions, currentProject, getProjectMembers } = useApp();
+  const { currentUser, users, tasks, workSessions, currentProject, getProjectMembers, getUserRoleName } = useApp();
 
   const teamMembers = currentProject
     ? getProjectMembers(currentProject)
@@ -106,7 +106,7 @@ export const TeamMonitorDashboard = () => {
                         <span className="font-semibold text-slate-900">{user.name}</span>
                       </div>
                     </td>
-                    <td className="p-3 font-medium text-slate-600 capitalize">{user.role ? user.role.toLowerCase() : 'member'}</td>
+                    <td className="p-3 font-medium text-slate-600">{getUserRoleName ? getUserRoleName(user) : (user.role || 'Member')}</td>
                     <td className="p-3 text-center font-mono font-semibold">{user.assignedTasksCount || tasks.filter(t => t.assigneeId === user.id || t.assigneeName === user.name).length}</td>
                     <td className="p-3 text-center font-mono text-emerald-600 font-semibold">{user.completedTasksCount || tasks.filter(t => (t.assigneeId === user.id || t.assigneeName === user.name) && t.status === 'Completed').length}</td>
                     <td className="p-3 text-center font-mono text-amber-600 font-semibold">{user.pendingReviewsCount || tasks.filter(t => (t.assigneeId === user.id || t.assigneeName === user.name) && t.status === 'In Review').length}</td>

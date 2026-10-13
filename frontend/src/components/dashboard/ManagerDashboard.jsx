@@ -47,8 +47,14 @@ export const ManagerDashboard = () => {
     setIsCreateSprintModalOpen,
     openEditTaskModal,
     deleteTask,
-    getProjectMembers
+    getProjectMembers,
+    isUserAdmin,
+    isTaskAssignedToUser,
+    hasPermission,
+    getUserRoleName
   } = useApp();
+
+  const canManageTasks = (isUserAdmin ? isUserAdmin() : false) || (hasPermission ? hasPermission('header_create_actions') : false);
 
   const [isProTipVisible, setIsProTipVisible] = useState(true);
   const [expandedSprintIds, setExpandedSprintIds] = useState(() =>
@@ -64,8 +70,16 @@ export const ManagerDashboard = () => {
   };
 
   // Strict Project Workspace Isolation
-  const projectTasks = !currentProject ? [] : tasks.filter(t => t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id));
-  const projectSprints = !currentProject ? [] : sprints.filter(s => s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id));
+  const projectTasks = !currentProject ? [] : tasks.filter(t => {
+    const matchesProj = t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id);
+    const isAssigned = isUserAdmin() || isTaskAssignedToUser(t, currentUser);
+    return matchesProj && isAssigned;
+  });
+  const projectSprints = !currentProject ? [] : sprints.filter(s => {
+    const matchesProj = s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id);
+    const hasAssignedTasks = isUserAdmin() || projectTasks.some(t => t.sprintId === s.id || String(t.sprintId) === String(s.id));
+    return matchesProj && hasAssignedTasks;
+  });
   const projectIssues = !currentProject ? [] : issues.filter(i => i.projectId === currentProject?.id || String(i.projectId) === String(currentProject?.id));
 
   // Dynamic Metrics Computation for Active Workspace
@@ -556,30 +570,32 @@ export const ManagerDashboard = () => {
                           </span>
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end space-x-1">
-                            <button
-                              title="Edit / Reassign Task"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditTaskModal(task);
-                              }}
-                              className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              title="Delete Task"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`Are you sure you want to delete task ${task.id}?`)) {
-                                  deleteTask(task.id);
-                                }
-                              }}
-                              className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          {canManageTasks && (
+                            <div className="flex items-center justify-end space-x-1">
+                              <button
+                                title="Edit / Reassign Task"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditTaskModal(task);
+                                }}
+                                className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="Delete Task"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`Are you sure you want to delete task ${task.id}?`)) {
+                                    deleteTask(task.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -675,30 +691,32 @@ export const ManagerDashboard = () => {
                                 </span>
                                 <span className="text-slate-500 font-mono text-[11px]">{task.storyPoints} pts</span>
                                 {renderAssigneeStack(task)}
-                                <div className="flex items-center space-x-1 pl-2 border-l border-slate-200">
-                                  <button
-                                    title="Edit / Reassign Task"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditTaskModal(task);
-                                    }}
-                                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    title="Delete Task"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (window.confirm(`Are you sure you want to delete task ${task.id}?`)) {
-                                        deleteTask(task.id);
-                                      }
-                                    }}
-                                    className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                {canManageTasks && (
+                                  <div className="flex items-center space-x-1 pl-2 border-l border-slate-200">
+                                    <button
+                                      title="Edit / Reassign Task"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditTaskModal(task);
+                                      }}
+                                      className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      title="Delete Task"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`Are you sure you want to delete task ${task.id}?`)) {
+                                          deleteTask(task.id);
+                                        }
+                                      }}
+                                      className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))
@@ -759,7 +777,7 @@ export const ManagerDashboard = () => {
 
                         <div>
                           <div className="font-bold text-slate-900 leading-tight">{member.name}</div>
-                          <div className="text-[11px] text-slate-400 capitalize">{member.role}</div>
+                          <div className="text-[11px] text-slate-400">{getUserRoleName ? getUserRoleName(member) : member.role}</div>
                         </div>
                       </div>
 

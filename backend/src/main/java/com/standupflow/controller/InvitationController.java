@@ -28,8 +28,30 @@ public class InvitationController {
 
     // Get All Invitations
     @GetMapping
-    public ResponseEntity<List<Invitation>> getAllInvitations() {
-        return ResponseEntity.ok(invitationRepository.findAll());
+    public ResponseEntity<List<Invitation>> getAllInvitations(
+            @RequestHeader(value = "X-User-Id", required = false) String headerUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String headerUserRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String headerRootAdmin,
+            @RequestHeader(value = "X-User-Email", required = false) String headerUserEmail) {
+        
+        List<Invitation> all = invitationRepository.findAll();
+        boolean isAdmin = (headerRootAdmin != null && ("1".equals(headerRootAdmin) || "true".equalsIgnoreCase(headerRootAdmin)))
+                || (headerUserRole != null && ("1".equals(headerUserRole) || "ADMIN".equalsIgnoreCase(headerUserRole) || "ROOT".equalsIgnoreCase(headerUserRole)));
+
+        if (isAdmin) {
+            return ResponseEntity.ok(all);
+        }
+
+        String userEmail = headerUserEmail != null ? headerUserEmail.trim().toLowerCase() : "";
+        String userId = headerUserId != null ? headerUserId.trim() : "";
+
+        List<Invitation> filtered = all.stream().filter(inv -> {
+            boolean matchesEmail = !userEmail.isEmpty() && inv.getInviteeEmail() != null && inv.getInviteeEmail().trim().equalsIgnoreCase(userEmail);
+            boolean matchesManager = !userId.isEmpty() && inv.getManagerId() != null && inv.getManagerId().trim().equals(userId);
+            return matchesEmail || matchesManager;
+        }).toList();
+
+        return ResponseEntity.ok(filtered);
     }
 
     // Send Team Invitation
@@ -48,17 +70,7 @@ public class InvitationController {
         String email = inviteeEmail.trim().toLowerCase();
         String code = managerCode != null ? managerCode.trim().toUpperCase() : "PRJ-CODE";
 
-        if (projectId == null || projectId.trim().isEmpty()) {
-            List<Project> projects = projectRepository.findAll();
-            for (Project p : projects) {
-                if ((p.getInviteCode() != null && p.getInviteCode().equalsIgnoreCase(code)) ||
-                    (p.getCode() != null && p.getCode().equalsIgnoreCase(code)) ||
-                    (p.getLeadId() != null && p.getLeadId().equals(managerId))) {
-                    projectId = p.getId();
-                    break;
-                }
-            }
-        }
+        String projIdToSet = (projectId != null && !projectId.trim().isEmpty()) ? projectId.trim() : null;
 
         // Create Invitation Record
         Invitation invitation = new Invitation(
@@ -66,7 +78,7 @@ public class InvitationController {
                 managerId,
                 managerName,
                 code,
-                projectId,
+                projIdToSet,
                 email,
                 "PENDING",
                 LocalDateTime.now()
@@ -123,16 +135,6 @@ public class InvitationController {
 
             if (inv.getProjectId() != null && !inv.getProjectId().trim().isEmpty()) {
                 targetProject = projectRepository.findById(inv.getProjectId()).orElse(null);
-            }
-
-            if (targetProject == null) {
-                for (Project p : allProjects) {
-                    if ((p.getInviteCode() != null && p.getInviteCode().equalsIgnoreCase(inv.getManagerCode())) ||
-                        (p.getCode() != null && p.getCode().equalsIgnoreCase(inv.getManagerCode()))) {
-                        targetProject = p;
-                        break;
-                    }
-                }
             }
 
             if (targetProject != null) {

@@ -1,12 +1,17 @@
 package com.standupflow.controller;
 
 import com.standupflow.model.IssueItem;
+import com.standupflow.model.Notification;
+import com.standupflow.model.User;
 import com.standupflow.repository.IssueRepository;
+import com.standupflow.repository.NotificationRepository;
+import com.standupflow.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -16,12 +21,40 @@ public class IssueController {
     @Autowired
     private IssueRepository issueRepository;
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
     @GetMapping
-    public List<IssueItem> getAllIssues(@RequestParam(required = false) String projectId) {
-        if (projectId != null && !projectId.isBlank()) {
-            return issueRepository.findByProjectId(projectId.trim());
+    public List<IssueItem> getAllIssues(
+            @RequestParam(required = false) String projectId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
+        List<IssueItem> list = (projectId != null && !projectId.isBlank())
+                ? issueRepository.findByProjectId(projectId.trim())
+                : issueRepository.findAll();
+
+        boolean isAdmin = userId == null || "1".equals(rootAdminStr) || "1".equals(userRole) || "ADMIN".equalsIgnoreCase(userRole) || "ROOT".equalsIgnoreCase(userRole);
+        if (isAdmin) {
+            return list;
         }
-        return issueRepository.findAll();
+
+        String finalUserId = userId != null ? userId.trim() : "";
+        String finalName = userName != null ? userName.trim().toLowerCase() : "";
+
+        return list.stream().filter(issue -> {
+            if (!finalUserId.isEmpty() && finalUserId.equalsIgnoreCase(issue.getAssigneeId())) return true;
+            if (!finalUserId.isEmpty() && finalUserId.equalsIgnoreCase(issue.getReporterId())) return true;
+            if (!finalName.isEmpty() && issue.getAssigneeName() != null && issue.getAssigneeName().toLowerCase().contains(finalName)) return true;
+            if (!finalName.isEmpty() && issue.getReporterName() != null && issue.getReporterName().toLowerCase().contains(finalName)) return true;
+            return false;
+        }).collect(java.util.stream.Collectors.toList());
     }
 
     @GetMapping("/{id}")
@@ -45,12 +78,18 @@ public class IssueController {
         if (issue.getSeverity() == null || issue.getSeverity().isBlank()) {
             issue.setSeverity("High");
         }
-        return issueRepository.save(issue);
+        IssueItem saved = issueRepository.save(issue);
+        // Notify assigned user when a real assignee is set
+        if (saved.getAssigneeId() != null && !saved.getAssigneeId().isBlank()) {
+            createNotificationForIssue(saved, "Bug Assigned To You");
+        }
+        return saved;
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<IssueItem> updateIssue(@PathVariable String id, @RequestBody IssueItem issueDetails) {
         return issueRepository.findById(id).map(issue -> {
+            String oldAssignee = issue.getAssigneeId() != null ? issue.getAssigneeId() : "";
             if (issueDetails.getTitle() != null) issue.setTitle(issueDetails.getTitle());
             if (issueDetails.getDescription() != null) issue.setDescription(issueDetails.getDescription());
             if (issueDetails.getState() != null) issue.setState(issueDetails.getState());
@@ -73,7 +112,13 @@ public class IssueController {
             if (issueDetails.getExpectedResult() != null) issue.setExpectedResult(issueDetails.getExpectedResult());
             if (issueDetails.getActualResult() != null) issue.setActualResult(issueDetails.getActualResult());
             if (issueDetails.getEnvironment() != null) issue.setEnvironment(issueDetails.getEnvironment());
-            return ResponseEntity.ok(issueRepository.save(issue));
+            IssueItem updated = issueRepository.save(issue);
+            // Notify newly assigned user when assignee changes
+            if (issueDetails.getAssigneeId() != null && !issueDetails.getAssigneeId().isBlank()
+                    && !issueDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
+                createNotificationForIssue(updated, "Bug Assigned To You");
+            }
+            return ResponseEntity.ok(updated);
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -85,5 +130,38 @@ public class IssueController {
         }
         return ResponseEntity.notFound().build();
     }
-}
 
+    private void createNotificationForIssue(IssueItem issue, String notifTitle) {
+        String assigneeId = issue.getAssigneeId();
+        if (assigneeId == null || assigneeId.isBlank()) return;
+
+        String senderName = issue.getReporterName() != null && !issue.getReporterName().isBlank()
+                ? issue.getReporterName() : "Manager";
+
+        Optional<User> userOpt = userRepository.findById(assigneeId);
+        if (userOpt.isEmpty()) userOpt = userRepository.findByEmail(assigneeId);
+        if (userOpt.isEmpty()) userOpt = userRepository.findByUsername(assigneeId);
+
+        String userId = assigneeId;
+        String userEmail = assigneeId;
+        String targetName = issue.getAssigneeName() != null ? issue.getAssigneeName() : "you";
+        if (userOpt.isPresent()) {
+            userId = userOpt.get().getId();
+            userEmail = userOpt.get().getEmail();
+            targetName = userOpt.get().getName();
+        }
+
+        Notification notif = new Notification(
+                "NOTIF-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                userId,
+                userEmail,
+                notifTitle,
+                senderName + " assigned bug \"" + issue.getTitle() + "\" (" + issue.getId() + ") to " + targetName + ".",
+                senderName,
+                null,
+                false,
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+        );
+        notificationRepository.save(notif);
+    }
+}

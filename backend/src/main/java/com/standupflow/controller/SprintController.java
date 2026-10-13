@@ -16,12 +16,81 @@ public class SprintController {
     @Autowired
     private SprintRepository sprintRepository;
 
+    @Autowired
+    private com.standupflow.repository.TaskRepository taskRepository;
+
+    @Autowired
+    private com.standupflow.repository.ProjectRepository projectRepository;
+
     @GetMapping
-    public List<Sprint> getAllSprints(@RequestParam(required = false) String projectId) {
-        if (projectId != null && !projectId.isBlank()) {
-            return sprintRepository.findByProjectId(projectId.trim());
+    public List<Sprint> getAllSprints(
+            @RequestParam(required = false) String projectId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
+        List<Sprint> list = (projectId != null && !projectId.isBlank())
+                ? sprintRepository.findByProjectId(projectId.trim())
+                : sprintRepository.findAll();
+
+        boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
+        if (isRootAdmin) {
+            return list;
         }
-        return sprintRepository.findAll();
+
+        String finalUserId = userId != null ? userId.trim() : "";
+        String finalEmail = userEmail != null ? userEmail.trim().toLowerCase() : "";
+        String finalName = userName != null ? userName.trim().toLowerCase() : "";
+
+        // Find sprint IDs where user has assigned tasks
+        List<com.standupflow.model.TaskItem> allTasks = taskRepository.findAll();
+        java.util.Set<String> visibleSprintIds = allTasks.stream().filter(task -> {
+            if (task.getSprintId() == null || task.getSprintId().isBlank()) return false;
+            if (task.getAssigneeId() != null && !task.getAssigneeId().isBlank()) {
+                String[] parts = task.getAssigneeId().split(",");
+                for (String p : parts) {
+                    String trimmed = p.trim();
+                    if (!trimmed.isEmpty()) {
+                        if (!finalUserId.isEmpty() && trimmed.equalsIgnoreCase(finalUserId)) return true;
+                        if (!finalEmail.isEmpty() && trimmed.equalsIgnoreCase(finalEmail)) return true;
+                    }
+                }
+            }
+            if (task.getAssigneeName() != null && !task.getAssigneeName().isBlank() && !finalName.isEmpty()) {
+                String[] parts = task.getAssigneeName().split(",");
+                for (String p : parts) {
+                    String trimmed = p.trim().toLowerCase();
+                    if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase("unassigned") && trimmed.equalsIgnoreCase(finalName)) {
+                        return true;
+                    }
+                }
+            }
+            if (!finalUserId.isEmpty() && task.getTesterId() != null && finalUserId.equalsIgnoreCase(task.getTesterId().trim())) return true;
+            return false;
+        }).map(com.standupflow.model.TaskItem::getSprintId).collect(java.util.stream.Collectors.toSet());
+
+        List<com.standupflow.model.Project> allProjects = projectRepository.findAll();
+        java.util.Set<String> visibleProjectIds = allProjects.stream().filter(p -> {
+            if (!finalUserId.isEmpty() && p.getMemberIds() != null && !p.getMemberIds().isBlank()) {
+                String[] mIds = p.getMemberIds().split(",");
+                for (String m : mIds) {
+                    if (m.trim().equalsIgnoreCase(finalUserId)) return true;
+                }
+            }
+            if (!finalEmail.isEmpty() && p.getMemberEmails() != null && !p.getMemberEmails().isBlank()) {
+                String[] mEmails = p.getMemberEmails().split(",");
+                for (String m : mEmails) {
+                    if (m.trim().equalsIgnoreCase(finalEmail)) return true;
+                }
+            }
+            if (!finalUserId.isEmpty() && p.getLeadId() != null && p.getLeadId().trim().equalsIgnoreCase(finalUserId)) return true;
+            if (!finalName.isEmpty() && p.getLead() != null && p.getLead().trim().equalsIgnoreCase(finalName)) return true;
+            return false;
+        }).map(com.standupflow.model.Project::getId).collect(java.util.stream.Collectors.toSet());
+
+        return list.stream().filter(s -> visibleSprintIds.contains(s.getId()) || (s.getProjectId() != null && visibleProjectIds.contains(s.getProjectId()))).collect(java.util.stream.Collectors.toList());
     }
 
     @GetMapping("/{id}")

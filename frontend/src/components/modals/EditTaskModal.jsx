@@ -14,7 +14,8 @@ export const EditTaskModal = () => {
     projects,
     users,
     currentProject,
-    getProjectMembers
+    getProjectMembers,
+    getUserRoleName
   } = useApp();
 
   const teamMembers = getProjectMembers(currentProject);
@@ -262,7 +263,7 @@ export const EditTaskModal = () => {
                           <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
                           <span>{u.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 capitalize font-mono">{u.role}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{getUserRoleName ? getUserRoleName(u) : u.role}</span>
                       </div>
                     );
                   })

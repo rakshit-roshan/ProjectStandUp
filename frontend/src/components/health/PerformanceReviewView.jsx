@@ -12,12 +12,12 @@ import {
 } from 'lucide-react';
 
 export const PerformanceReviewView = () => {
-  const { performanceReviews = [], users = [], currentUser } = useApp();
+  const { performanceReviews = [], users = [], currentUser, getUserRoleName } = useApp();
 
   const defaultReview = {
     id: 'rev-default',
     userName: currentUser?.name || currentUser?.fullname || 'Root Admin',
-    userRole: currentUser?.role || 'Company Administrator',
+    userRole: getUserRoleName ? getUserRoleName(currentUser) : (currentUser?.role || 'Company Administrator'),
     reviewPeriod: 'Q1 2026',
     qualityRating: 'Exceeds Expectations (A+)',
     taskCompletionRate: 98,
@@ -88,7 +88,7 @@ export const PerformanceReviewView = () => {
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{selectedReview?.userName || 'User'}</h2>
-            <p className="text-xs text-slate-500">{selectedReview?.userRole || 'Member'} • Appraisal Period: <strong className="text-slate-800">{selectedReview?.reviewPeriod || 'Q1 2026'}</strong></p>
+            <p className="text-xs text-slate-500">{getUserRoleName ? getUserRoleName(selectedReview?.userRole) : (selectedReview?.userRole || 'Member')} • Appraisal Period: <strong className="text-slate-800">{selectedReview?.reviewPeriod || 'Q1 2026'}</strong></p>
           </div>
           <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-bold rounded text-xs border border-indigo-200">
             {selectedReview?.qualityRating || 'High Performer'}

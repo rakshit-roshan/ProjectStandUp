@@ -14,9 +14,73 @@ public class ProjectController {
     @Autowired
     private ProjectRepository projectRepository;
 
+    @Autowired
+    private com.standupflow.repository.TaskRepository taskRepository;
+
     @GetMapping
-    public List<Project> getAllProjects() {
-        return projectRepository.findAll();
+    public List<Project> getAllProjects(
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
+        List<Project> all = projectRepository.findAll();
+
+        boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
+        if (isRootAdmin) {
+            return all;
+        }
+
+        String finalUserId = userId != null ? userId.trim() : "";
+        String finalEmail = userEmail != null ? userEmail.trim().toLowerCase() : "";
+        String finalName = userName != null ? userName.trim().toLowerCase() : "";
+
+        // Find projects where user has assigned tasks
+        List<com.standupflow.model.TaskItem> allTasks = taskRepository.findAll();
+        java.util.Set<String> projectIdsWithTasks = allTasks.stream().filter(task -> {
+            if (task.getProjectId() == null || task.getProjectId().isBlank()) return false;
+            if (task.getAssigneeId() != null && !task.getAssigneeId().isBlank()) {
+                String[] parts = task.getAssigneeId().split(",");
+                for (String p : parts) {
+                    String trimmed = p.trim();
+                    if (!trimmed.isEmpty()) {
+                        if (!finalUserId.isEmpty() && trimmed.equalsIgnoreCase(finalUserId)) return true;
+                        if (!finalEmail.isEmpty() && trimmed.equalsIgnoreCase(finalEmail)) return true;
+                    }
+                }
+            }
+            if (task.getAssigneeName() != null && !task.getAssigneeName().isBlank() && !finalName.isEmpty()) {
+                String[] parts = task.getAssigneeName().split(",");
+                for (String p : parts) {
+                    String trimmed = p.trim().toLowerCase();
+                    if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase("unassigned") && trimmed.equalsIgnoreCase(finalName)) {
+                        return true;
+                    }
+                }
+            }
+            if (!finalUserId.isEmpty() && task.getTesterId() != null && finalUserId.equalsIgnoreCase(task.getTesterId().trim())) return true;
+            return false;
+        }).map(com.standupflow.model.TaskItem::getProjectId).collect(java.util.stream.Collectors.toSet());
+
+        return all.stream().filter(p -> {
+            if (projectIdsWithTasks.contains(p.getId())) return true;
+            if (!finalUserId.isEmpty() && p.getMemberIds() != null && !p.getMemberIds().isBlank()) {
+                String[] mIds = p.getMemberIds().split(",");
+                for (String m : mIds) {
+                    if (m.trim().equalsIgnoreCase(finalUserId)) return true;
+                }
+            }
+            if (!finalEmail.isEmpty() && p.getMemberEmails() != null && !p.getMemberEmails().isBlank()) {
+                String[] mEmails = p.getMemberEmails().split(",");
+                for (String m : mEmails) {
+                    if (m.trim().equalsIgnoreCase(finalEmail)) return true;
+                }
+            }
+            if (!finalUserId.isEmpty() && p.getLeadId() != null && p.getLeadId().trim().equalsIgnoreCase(finalUserId)) return true;
+            if (!finalName.isEmpty() && p.getLead() != null && p.getLead().trim().equalsIgnoreCase(finalName)) return true;
+            return false;
+        }).collect(java.util.stream.Collectors.toList());
     }
 
     @PostMapping

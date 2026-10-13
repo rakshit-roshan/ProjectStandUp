@@ -15,15 +15,11 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByUsername(String username);
 
+    // Used only for admin lookups / non-auth flows
     Optional<User> findByUsernameOrEmailidOrFullname(String username, String emailid, String fullname);
 
-    default Optional<User> findByUsernameOrEmailOrFullname(String identifier) {
-        return findByUsernameOrEmailidOrFullname(identifier, identifier, identifier);
-    }
-
-    default Optional<User> findByEmailOrName(String identifier) {
-        return findByUsernameOrEmailidOrFullname(identifier, identifier, identifier);
-    }
+    // Strict login lookup: matches ONLY username or emailid — NOT fullname
+    Optional<User> findByUsernameOrEmailid(String username, String emailid);
 
     default Optional<User> findByEmail(String emailid) {
         return findByEmailid(emailid);

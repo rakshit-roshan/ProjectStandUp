@@ -417,6 +417,11 @@ public class TenantDatabaseService {
 
     private void alignExistingTenantTableSchemas(Statement stmt) {
         String[] alterStatements = new String[] {
+            // Projects
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_emails VARCHAR(2000);",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_ids VARCHAR(2000);",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS lead_id VARCHAR(255);",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS invite_code VARCHAR(255);",
             // Sprints
             "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
             "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",

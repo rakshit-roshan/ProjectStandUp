@@ -19,7 +19,8 @@ export const BugReportModal = () => {
     tasks,
     users,
     currentProject,
-    getProjectMembers
+    getProjectMembers,
+    getUserRoleName
   } = useApp();
 
   const teamMembers = getProjectMembers(currentProject);
@@ -193,7 +194,7 @@ export const BugReportModal = () => {
                     <option value="">No linked team members available</option>
                   ) : (
                     teamMembers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      <option key={u.id} value={u.id}>{u.name} ({getUserRoleName ? getUserRoleName(u) : u.role})</option>
                     ))
                   )}
                 </select>

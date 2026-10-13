@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const EmployeeHealthDashboard = () => {
-  const { workSessions = [], users = [], currentUser } = useApp();
+  const { workSessions = [], users = [], currentUser, getUserRoleName } = useApp();
 
   // Populate users strictly from database records or current authenticated user
   const displayUsers = (users && users.length > 0) ? users : (currentUser ? [currentUser] : []);
@@ -32,7 +32,7 @@ export const EmployeeHealthDashboard = () => {
   );
 
   const displayName = selectedUser?.fullname || selectedUser?.name || selectedUser?.username || 'User';
-  const displayRole = selectedUser?.role || 'Member';
+  const displayRole = getUserRoleName ? getUserRoleName(selectedUser) : (selectedUser?.role || 'Member');
   const displayDepartment = selectedUser?.department || 'Engineering';
 
   // Compute real metrics directly from selectedUser object
@@ -69,7 +69,7 @@ export const EmployeeHealthDashboard = () => {
             >
               {displayUsers.map(u => (
                 <option key={u.id} value={u.id}>
-                  {u.fullname || u.name || u.username} ({u.role || 'Member'})
+                  {u.fullname || u.name || u.username} ({getUserRoleName ? getUserRoleName(u) : (u.role || 'Member')})
                 </option>
               ))}
             </select>

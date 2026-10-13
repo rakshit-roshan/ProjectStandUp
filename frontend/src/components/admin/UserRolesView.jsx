@@ -70,7 +70,8 @@ export const UserRolesView = () => {
 
     { key: 'user_accounts', label: 'User Accounts', group: 'Administration', icon: UserCheck, desc: 'Create user accounts & enable/disable access' },
     { key: 'user_roles', label: 'User Roles', group: 'Administration', icon: Shield, desc: 'Configure feature permissions & custom roles' },
-    { key: 'settings', label: 'Settings (Enter Code)', group: 'General', icon: Settings, desc: 'Edit profile & enter manager access codes' }
+    { key: 'settings', label: 'Settings (Enter Code)', group: 'General', icon: Settings, desc: 'Edit profile & enter manager access codes' },
+    { key: 'header_create_actions', label: 'Header Quick Actions (Create Task / Sprint / Project)', group: 'Header Options', icon: Plus, desc: 'Allow user to see and use header creation buttons for tasks, sprints, and projects' }
   ];
 
   const getHeaders = () => {
@@ -271,7 +272,7 @@ export const UserRolesView = () => {
   };
 
   // Group features by section
-  const groups = ['Workspace', 'Tasks Queue', 'Management Console', 'Testing Module', 'Administration', 'General'];
+  const groups = ['Workspace', 'Tasks Queue', 'Management Console', 'Testing Module', 'Administration', 'General', 'Header Options'];
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -360,8 +361,8 @@ export const UserRolesView = () => {
                       placeholder="Custom Role Name..."
                       className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-200 focus:bg-white rounded-lg px-2.5 py-1 focus:border-amber-500 outline-none transition-all"
                     />
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-mono font-bold rounded">
-                      Role Code: {activeRole.roleCode}
+                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-medium rounded">
+                      {activeRole.roleName || 'Custom Role'}
                     </span>
                   </div>
                   <input
@@ -588,13 +589,21 @@ export const UserRolesView = () => {
                     onChange={(e) => setReplacementRoleCode(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer shadow-2xs"
                   >
-                    {roles
-                      .filter(r => Number(r.roleCode) !== Number(deleteTargetRole.roleCode))
-                      .map(r => (
+                    {(() => {
+                      const systemRoles = [
+                        { roleCode: 1, roleName: 'Company Administrator' },
+                        { roleCode: 2, roleName: 'Engineering Manager' },
+                        { roleCode: 3, roleName: 'Software Engineer' },
+                        { roleCode: 4, roleName: 'QA / Tester' }
+                      ];
+                      const availableReassignRoles = [...systemRoles, ...roles.filter(r => !r.isSystem && Number(r.roleCode) > 4)]
+                        .filter(r => Number(r.roleCode) !== Number(deleteTargetRole.roleCode));
+                      return availableReassignRoles.map(r => (
                         <option key={r.roleCode} value={r.roleCode}>
                           {r.roleName}
                         </option>
-                      ))}
+                      ));
+                    })()}
                   </select>
                 </div>
               </div>

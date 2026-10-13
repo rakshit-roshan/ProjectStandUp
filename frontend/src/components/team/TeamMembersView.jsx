@@ -24,7 +24,10 @@ export const TeamMembersView = () => {
     sendInvitation,
     removeMemberFromProject,
     joinTeamCode,
-    getProjectMembers
+    getProjectMembers,
+    getUserRoleName,
+    isUserAdmin,
+    addMemberToProject
   } = useApp();
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -33,9 +36,11 @@ export const TeamMembersView = () => {
   const [copied, setCopied] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedAssigneeUserId, setSelectedAssigneeUserId] = useState('');
 
   // Compute permissions for current user
   const canManageMembers = 
+    (isUserAdmin ? isUserAdmin() : Boolean(currentUser?.rootadmin === 1)) ||
     currentUser?.role === 'MANAGER' ||
     currentUser?.id === currentProject?.leadId ||
     (currentUser?.name && currentProject?.lead && currentUser.name.toLowerCase().trim() === currentProject.lead.toLowerCase().trim()) ||
@@ -43,6 +48,7 @@ export const TeamMembersView = () => {
 
   // Filter users belonging to current project workspace
   const projectMembers = getProjectMembers(currentProject);
+  const unassignedCompanyUsers = (users || []).filter(u => !projectMembers.some(pm => String(pm.id) === String(u.id)));
 
   // Filter pending invitations for current project
   const projectPendingInvites = invitations.filter(i => 
@@ -221,7 +227,7 @@ export const TeamMembersView = () => {
                     <div className="flex items-center space-x-4">
                       <div className="text-right">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                          {member.role || 'ENGINEER'}
+                          {getUserRoleName ? getUserRoleName(member) : (member.role || 'Software Engineer')}
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{member.department || 'Engineering'}</div>
                       </div>
@@ -246,11 +252,60 @@ export const TeamMembersView = () => {
 
         {/* Right Column: Add Member & Pending Invitations (1 col width) */}
         <div className="space-y-6">
+          {/* Direct User Assignment Box (Admin / Manager) */}
+          {canManageMembers && (
+            <div id="team-assign-user-box" className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
+                <UserPlus className="w-4 h-4 text-emerald-600" />
+                <span>Assign User to {currentProject?.name || 'Workspace'}</span>
+              </h2>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Select Registered Team Member</label>
+                  <select
+                    value={selectedAssigneeUserId}
+                    onChange={(e) => setSelectedAssigneeUserId(e.target.value)}
+                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="">-- Choose User to Assign --</option>
+                    {unassignedCompanyUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.fullname || u.name} ({getUserRoleName ? getUserRoleName(u) : u.role}) — {u.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!selectedAssigneeUserId || loading}
+                  onClick={async () => {
+                    if (!selectedAssigneeUserId || !currentProject) return;
+                    setLoading(true);
+                    const res = await addMemberToProject(currentProject.id, selectedAssigneeUserId);
+                    setLoading(false);
+                    if (res?.success) {
+                      const u = users.find(x => x.id === selectedAssigneeUserId);
+                      setStatusMsg(`Assigned ${u?.name || 'User'} to "${currentProject.name}" workspace!`);
+                      setSelectedAssigneeUserId('');
+                      setTimeout(() => setStatusMsg(''), 4000);
+                    }
+                  }}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{loading ? 'Assigning...' : `Assign to ${currentProject?.name || 'Project'}`}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Invite New Member Box */}
           <div id="team-invite-form" className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
             <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2 border-b border-slate-100 pb-3">
-              <UserPlus className="w-4 h-4 text-blue-600" />
-              <span>Invite Member to Project Workspace</span>
+              <Mail className="w-4 h-4 text-blue-600" />
+              <span>Invite via Email</span>
             </h2>
 
             <form onSubmit={handleSendInvite} className="space-y-3">

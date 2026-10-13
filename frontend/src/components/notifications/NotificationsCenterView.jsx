@@ -3,16 +3,20 @@ import { useApp } from '../../context/AppContext';
 import { Bell, CheckCircle2, Filter, AlertTriangle, UserCheck } from 'lucide-react';
 
 export const NotificationsCenterView = () => {
-  const { currentUser, notifications, markNotificationRead, markAllNotificationsRead, navigateTo } = useApp();
+  const { currentUser, notifications, userNotifications: contextUserNotifs, markNotificationRead, markAllNotificationsRead, navigateTo } = useApp();
   const [filterUnread, setFilterUnread] = useState(false);
 
-  const userNotifications = (notifications || []).filter(n => 
-    !n.userId || 
-    String(n.userId) === String(currentUser?.id) || 
-    (n.userEmail && currentUser?.email && n.userEmail.toLowerCase() === currentUser.email.toLowerCase())
-  );
+  const userNotifications = contextUserNotifs || (notifications || []).filter(n => {
+    if (!currentUser || !n) return false;
+    const uid = String(currentUser.id || '');
+    const email = (currentUser.email || '').toLowerCase().trim();
+    const nUid = n.userId !== undefined && n.userId !== null ? String(n.userId).trim() : '';
+    const nEmail = n.userEmail ? String(n.userEmail).toLowerCase().trim() : '';
+    return (uid && nUid && (nUid === uid || nUid.split(',').map(s => s.trim()).includes(uid))) ||
+           (email && nEmail && (nEmail === email || nEmail.split(',').map(s => s.trim()).includes(email)));
+  });
 
-  const displayedNotifs = filterUnread ? userNotifications.filter(n => !n.read) : userNotifications;
+  const displayedNotifs = filterUnread ? userNotifications.filter(n => !(n.read || n.isRead)) : userNotifications;
 
   return (
     <div className="p-6 space-y-4 max-w-[1200px] mx-auto">
@@ -63,9 +67,14 @@ export const NotificationsCenterView = () => {
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
                   <span className="font-bold text-slate-900">{n.title}</span>
-                  {!n.read && <span className="w-2 h-2 rounded-full bg-blue-600" />}
+                  {!(n.read || n.isRead) && <span className="w-2 h-2 rounded-full bg-blue-600" />}
                 </div>
                 <p className="text-slate-600 leading-snug">{n.message}</p>
+                {(n.reporterName || n.reporter_name) && (
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    From: <span className="text-slate-500">{n.reporterName || n.reporter_name}</span>
+                  </p>
+                )}
               </div>
               <span className="text-[10px] text-slate-400 font-mono shrink-0">{n.timestamp}</span>
             </div>

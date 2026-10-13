@@ -27,19 +27,24 @@ export const TesterDashboard = () => {
     setIsReportBugModalOpen,
     navigateTo,
     setIsTaskDrawerOpen,
-    setSelectedTaskId
+    setSelectedTaskId,
+    currentProject
   } = useApp();
 
   const [testingFilter, setTestingFilter] = useState('ALL'); // ALL | Pending Testing | In Testing | Passed | Failed
 
+  // Filter tasks strictly by currentProject
+  const projectTasks = !currentProject ? [] : tasks.filter(t => t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id));
+  const projectIssues = !currentProject ? [] : issues.filter(i => i.projectId === currentProject?.id || String(i.projectId) === String(currentProject?.id));
+
   // Testing tasks queue
-  const testingTasks = tasks.filter(t => t.status === 'In Review' || t.status === 'Completed' || t.testingStatus !== 'Passed');
+  const testingTasks = projectTasks.filter(t => t.status === 'In Review' || t.status === 'Completed' || t.testingStatus !== 'Passed');
   
-  const pendingTesting = tasks.filter(t => t.testingStatus === 'Pending Testing' || (t.status === 'In Review' && t.testingStatus !== 'Passed'));
-  const inTesting = tasks.filter(t => t.testingStatus === 'In Testing');
-  const passedTesting = tasks.filter(t => t.testingStatus === 'Passed');
-  const failedTesting = tasks.filter(t => t.testingStatus === 'Failed');
-  const bugsReportedCount = issues.length;
+  const pendingTesting = projectTasks.filter(t => t.testingStatus === 'Pending Testing' || (t.status === 'In Review' && t.testingStatus !== 'Passed'));
+  const inTesting = projectTasks.filter(t => t.testingStatus === 'In Testing');
+  const passedTesting = projectTasks.filter(t => t.testingStatus === 'Passed');
+  const failedTesting = projectTasks.filter(t => t.testingStatus === 'Failed');
+  const bugsReportedCount = projectIssues.length;
 
   const filteredTasks = testingFilter === 'ALL'
     ? testingTasks

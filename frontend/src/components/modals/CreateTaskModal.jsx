@@ -13,7 +13,8 @@ export const CreateTaskModal = () => {
     users,
     currentSprint,
     currentProject,
-    getProjectMembers
+    getProjectMembers,
+    getUserRoleName
   } = useApp();
 
   const activeProject = currentProject || (projects && projects.length > 0 ? projects[0] : null);
@@ -21,6 +22,7 @@ export const CreateTaskModal = () => {
   const projectSprints = (sprints || []).filter(s => !activeProject || !s.projectId || s.projectId === activeProject?.id || String(s.projectId) === String(activeProject?.id));
   const availableSprints = projectSprints.length > 0 ? projectSprints : (sprints || []);
   const teamMembers = getProjectMembers(activeProject);
+  const availableAssignees = [...teamMembers, ...(users || []).filter(u => !teamMembers.some(tm => String(tm.id) === String(u.id)))];
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -46,10 +48,11 @@ export const CreateTaskModal = () => {
   if (!isCreateTaskModalOpen) return null;
 
   const toggleAssignee = (uId) => {
-    if (selectedAssigneeIds.includes(uId)) {
-      setSelectedAssigneeIds(selectedAssigneeIds.filter(id => id !== uId));
+    const sId = String(uId);
+    if (selectedAssigneeIds.map(String).includes(sId)) {
+      setSelectedAssigneeIds(selectedAssigneeIds.filter(id => String(id) !== sId));
     } else {
-      setSelectedAssigneeIds([...selectedAssigneeIds, uId]);
+      setSelectedAssigneeIds([...selectedAssigneeIds, sId]);
     }
   };
 
@@ -61,7 +64,7 @@ export const CreateTaskModal = () => {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const assignedUsers = teamMembers.filter(u => selectedAssigneeIds.includes(u.id));
+    const assignedUsers = availableAssignees.filter(u => selectedAssigneeIds.map(String).includes(String(u.id)));
     const assigneeIdsStr = assignedUsers.map(u => u.id).join(',');
     const assigneeNamesStr = assignedUsers.length > 0 
       ? assignedUsers.map(u => u.name).join(', ') 
@@ -194,7 +197,7 @@ export const CreateTaskModal = () => {
                   {selectedAssigneeIds.length === 0
                     ? 'Unassigned (No team members selected)'
                     : selectedAssigneeIds.length === 1
-                    ? teamMembers.find(u => u.id === selectedAssigneeIds[0])?.name || '1 Assignee'
+                    ? availableAssignees.find(u => String(u.id) === String(selectedAssigneeIds[0]))?.name || '1 Assignee'
                     : `${selectedAssigneeIds.length} Assignees Selected`}
                 </span>
               </div>
@@ -216,11 +219,11 @@ export const CreateTaskModal = () => {
                   )}
                 </div>
 
-                {teamMembers.length === 0 ? (
+                {availableAssignees.length === 0 ? (
                   <div className="p-2 text-slate-400 text-xs">No team members available</div>
                 ) : (
-                  teamMembers.map(u => {
-                    const isSelected = selectedAssigneeIds.includes(u.id);
+                  availableAssignees.map(u => {
+                    const isSelected = selectedAssigneeIds.map(String).includes(String(u.id));
                     return (
                       <div
                         key={u.id}
@@ -239,7 +242,7 @@ export const CreateTaskModal = () => {
                           <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
                           <span>{u.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 capitalize font-mono">{u.role}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{getUserRoleName ? getUserRoleName(u) : u.role}</span>
                       </div>
                     );
                   })

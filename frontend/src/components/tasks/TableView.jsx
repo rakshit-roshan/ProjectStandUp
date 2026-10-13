@@ -25,7 +25,10 @@ export const TableView = () => {
     setIsTaskDrawerOpen,
     updateTaskStatus,
     users,
-    currentProject
+    currentProject,
+    currentUser,
+    isUserAdmin,
+    isTaskAssignedToUser
   } = useApp();
 
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -36,11 +39,12 @@ export const TableView = () => {
   // Filter tasks
   let processedTasks = !currentProject ? [] : tasks.filter(t => {
     const isCurrentProj = t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id);
+    const isAssigned = isUserAdmin() || isTaskAssignedToUser(t, currentUser);
     const matchesSearch = !searchQuery || 
       t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
-    return isCurrentProj && matchesSearch && matchesStatus;
+    return isCurrentProj && isAssigned && matchesSearch && matchesStatus;
   });
 
   // Sort tasks
@@ -171,7 +175,7 @@ export const TableView = () => {
               {processedTasks.length === 0 ? (
                 <tr>
                   <td colSpan="11" className="p-8 text-center text-slate-400">
-                    No tasks found matching criteria
+                    {!currentProject ? 'No project workspace assigned to your account.' : 'No tasks assigned to you in this project.'}
                   </td>
                 </tr>
               ) : (

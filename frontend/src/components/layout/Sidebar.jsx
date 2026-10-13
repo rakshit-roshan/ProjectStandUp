@@ -35,9 +35,11 @@ export const Sidebar = () => {
     sidebarCollapsed,
     issues,
     notifications,
+    userNotifications: contextUserNotifs,
     hasPermission,
     getUserRoleName,
-    setIsOnboardingOpen
+    setIsOnboardingOpen,
+    isUserAdmin
   } = useApp();
 
   const [activeAccordion, setActiveAccordion] = useState(null); // 'tasks' | 'management' | 'testing' | 'admin' | null
@@ -51,16 +53,20 @@ export const Sidebar = () => {
   const isTestingSubmenuOpen = activeAccordion === 'testing';
   const isAdminSubmenuOpen = activeAccordion === 'admin';
 
-  const userNotifications = (notifications || []).filter(n => 
-    !n.userId || 
-    String(n.userId) === String(currentUser?.id) || 
-    (n.userEmail && currentUser?.email && n.userEmail.toLowerCase() === currentUser.email.toLowerCase())
-  );
+  const userNotifications = contextUserNotifs || (notifications || []).filter(n => {
+    if (!currentUser || !n) return false;
+    const uid = String(currentUser.id || '');
+    const email = (currentUser.email || '').toLowerCase().trim();
+    const nUid = n.userId !== undefined && n.userId !== null ? String(n.userId).trim() : '';
+    const nEmail = n.userEmail ? String(n.userEmail).toLowerCase().trim() : '';
+    return (uid && nUid && (nUid === uid || nUid.split(',').map(s => s.trim()).includes(uid))) ||
+           (email && nEmail && (nEmail === email || nEmail.split(',').map(s => s.trim()).includes(email)));
+  });
   const unreadCount = userNotifications.filter(n => !n.read).length;
   const openIssuesCount = issues.filter(i => i.state !== 'Done').length;
 
   const normRole = (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
-  const isAdmin = currentRole === 'ADMIN' || currentRole === 'ROOT' || currentRole === 1 || currentRole === '1' || currentUser?.rootadmin === 1 || currentUser?.role === 'ADMIN' || currentUser?.role === 1 || currentUser?.role === '1';
+  const isAdmin = isUserAdmin ? isUserAdmin() : Boolean(currentUser?.rootadmin === 1);
   const isEngineer = normRole === 'ENGINEER' || isAdmin;
   const isTester = currentRole === 'TESTER' || isAdmin;
   const isAssigned = true; // Every user has full active workspace access

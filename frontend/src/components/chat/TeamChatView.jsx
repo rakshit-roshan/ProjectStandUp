@@ -38,7 +38,8 @@ export const TeamChatView = () => {
     sendChatMessage,
     deleteChatMessage,
     createChatChannel,
-    markChatAsRead
+    markChatAsRead,
+    getUserRoleName
   } = useApp();
 
   const teamMembers = getProjectMembers(currentProject);
@@ -807,7 +808,7 @@ export const TeamChatView = () => {
                             />
                             <div>
                               <div className="font-bold text-slate-900 text-xs">{user.name}</div>
-                              <div className="text-[11px] text-slate-500">{user.email} • {user.role}</div>
+                              <div className="text-[11px] text-slate-500">{user.email} • {getUserRoleName ? getUserRoleName(user) : user.role}</div>
                             </div>
                           </div>
                           <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${

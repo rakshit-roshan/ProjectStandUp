@@ -137,14 +137,14 @@ export const AppProvider = ({ children }) => {
   }, [isAuthenticated]);
 
   const hasPermission = (menuKey) => {
-    // Primary Root Administrator (rootadmin === 1 or roleCode === 1) gets full unrestricted bypass
+    // Primary Root Administrator (rootadmin === 1) gets full unrestricted bypass
+    if (Boolean(currentUser?.rootadmin === 1 || String(currentUser?.rootadmin) === '1')) {
+      return true;
+    }
+
     const userRoleCode = currentUser?.roleCode !== undefined && currentUser?.roleCode !== null
       ? Number(currentUser.roleCode)
       : (currentUser?.role === 'ADMIN' || currentUser?.role === 1 ? 1 : Number(currentUser?.role || 1));
-
-    if (currentUser?.rootadmin === 1 || userRoleCode === 1 || currentRole === 'ADMIN' || currentRole === 'ROOT') {
-      return true;
-    }
 
     const roleObj = rolesPermissions.find(r => 
       Number(r.roleCode) === userRoleCode || 
@@ -152,46 +152,71 @@ export const AppProvider = ({ children }) => {
     );
 
     if (!roleObj || !roleObj.permissionsJson) {
+      if (menuKey === 'header_create_actions' || menuKey === 'header_actions') {
+        return false;
+      }
       if (userRoleCode > 4) {
         return menuKey === 'dashboard';
+      }
+      if (menuKey === 'user_accounts' || menuKey === 'user_roles') {
+        return false;
       }
       return true;
     }
 
     try {
       const perms = JSON.parse(roleObj.permissionsJson);
-      return Array.isArray(perms) ? perms.includes(menuKey) : true;
+      return Array.isArray(perms) ? perms.includes(menuKey) : false;
     } catch (e) {
       return menuKey === 'dashboard';
     }
   };
 
   const getUserRoleName = (userToLookup = currentUser) => {
-    const userObj = userToLookup || currentUser;
-    if (!userObj) return 'User';
-    if (userObj.rootadmin === 1) return 'Company Administrator (Root)';
+    if (!userToLookup) return 'User';
 
-    const userRoleCode = userObj.roleCode !== undefined && userObj.roleCode !== null
-      ? Number(userObj.roleCode)
-      : (userObj.role === 'ADMIN' || userObj.role === 1 ? 1 : Number(userObj.role || 1));
+    let roleInput = null;
+    let isRoot = false;
+
+    if (typeof userToLookup === 'object') {
+      isRoot = Boolean(userToLookup.rootadmin === 1 || String(userToLookup.rootadmin) === '1');
+      if (isRoot) return 'Company Administrator (Root)';
+
+      if (userToLookup.roleName && typeof userToLookup.roleName === 'string' && !userToLookup.roleName.startsWith('Role ')) {
+        return userToLookup.roleName;
+      }
+
+      roleInput = userToLookup.roleCode !== undefined && userToLookup.roleCode !== null
+        ? userToLookup.roleCode
+        : userToLookup.role;
+    } else {
+      roleInput = userToLookup;
+    }
+
+    const codeNum = Number(roleInput);
 
     if (rolesPermissions && Array.isArray(rolesPermissions)) {
-      const found = rolesPermissions.find(r => Number(r.roleCode) === userRoleCode);
+      const found = rolesPermissions.find(r => 
+        Number(r.roleCode) === codeNum || 
+        (r.roleName && String(roleInput).toLowerCase() === String(r.roleName).toLowerCase())
+      );
       if (found && found.roleName) {
         return found.roleName;
       }
     }
 
-    if (userRoleCode === 1) return 'Company Administrator';
-    if (userRoleCode === 2) return 'Engineering Manager';
-    if (userRoleCode === 3) return 'Software Engineer';
-    if (userRoleCode === 4) return 'QA / Tester';
+    if (codeNum === 1 || String(roleInput).toUpperCase() === 'ADMIN' || String(roleInput).toUpperCase() === 'ROOT') {
+      return isRoot ? 'Company Administrator (Root)' : 'Company Administrator';
+    }
+    if (codeNum === 2 || String(roleInput).toUpperCase() === 'MANAGER') return 'Engineering Manager';
+    if (codeNum === 3 || String(roleInput).toUpperCase() === 'DEVELOPER' || String(roleInput).toUpperCase() === 'ENGINEER') return 'Software Engineer';
+    if (codeNum === 4 || String(roleInput).toUpperCase() === 'TESTER' || String(roleInput).toUpperCase() === 'QA') return 'QA / Tester';
 
-    if (userObj.role && isNaN(Number(userObj.role)) && userObj.role !== 'ADMIN') {
-      return userObj.role;
+    if (typeof roleInput === 'string' && isNaN(codeNum) && roleInput.trim()) {
+      return roleInput.trim();
     }
 
-    return `Role ${userRoleCode}`;
+    return codeNum > 4 ? `Custom Role (${codeNum})` : 'User';
   };
 
   // View & UI Navigation State
@@ -261,6 +286,24 @@ export const AppProvider = ({ children }) => {
     if (companyId) {
       headers['X-Company-Id'] = String(companyId);
     }
+    if (currentUser?.id) {
+      headers['X-User-Id'] = String(currentUser.id);
+    }
+    const uEmail = currentUser?.email || currentUser?.emailid;
+    if (uEmail) {
+      headers['X-User-Email'] = String(uEmail);
+    }
+    const uName = currentUser?.name || currentUser?.fullname;
+    if (uName) {
+      headers['X-User-Name'] = String(uName);
+    }
+    const roleCode = currentUser?.roleCode !== undefined ? currentUser.roleCode : currentUser?.role;
+    if (roleCode !== undefined && roleCode !== null) {
+      headers['X-User-Role'] = String(roleCode);
+    }
+    if (currentUser?.rootadmin !== undefined) {
+      headers['X-User-Rootadmin'] = String(currentUser.rootadmin);
+    }
     return headers;
   };
 
@@ -304,7 +347,7 @@ export const AppProvider = ({ children }) => {
 
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
-          if (tasksData && tasksData.length > 0) setTasks(tasksData);
+          if (tasksData && Array.isArray(tasksData)) setTasks(tasksData);
         }
         if (issuesRes.ok) {
           const issuesData = await issuesRes.json();
@@ -343,13 +386,10 @@ export const AppProvider = ({ children }) => {
         }
         if (notifRes && notifRes.ok) {
           const notifData = await notifRes.json();
-          if (notifData && Array.isArray(notifData)) {
-            setNotifications(prev => {
-              const map = new Map();
-              prev.forEach(n => map.set(n.id, n));
-              notifData.forEach(n => map.set(n.id, n));
-              return Array.from(map.values());
-            });
+          if (Array.isArray(notifData)) {
+            // Backend already returns only this user's notifications (filtered by X-User-Id/X-User-Email).
+            // Store directly — no further leakage from cross-user data.
+            setNotifications(notifData);
           }
         }
         if (chatMsgsRes && chatMsgsRes.ok) {
@@ -496,15 +536,20 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Complete Onboarding Tour in MariaDB
+  // Complete Onboarding Tour in MariaDB — persists has_completed_tour = true in tblUser_details
   const completeTour = async () => {
     if (!currentUser) return;
-    try {
-      await fetch(`${API_BASE_URL}/auth/complete-tour/${currentUser.id}`, { method: 'POST' });
-    } catch (e) {
-      console.warn('Completed tour offline state.');
-    }
+    // Always update local state immediately so tour won't reopen within this session
     setCurrentUser(prev => ({ ...prev, hasCompletedTour: true }));
+    try {
+      // X-Company-Id header required by TenantInterceptor to route to the correct tenant DB
+      await fetch(`${API_BASE_URL}/auth/complete-tour/${currentUser.id}`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+    } catch (e) {
+      console.warn('[completeTour] Could not persist to DB, will retry on next tour dismiss.');
+    }
   };
 
   // Logout / Clear Session Storage
@@ -517,6 +562,14 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     setCurrentView('login');
+    setNotifications([]);
+    setTasks([]);
+    setSprints([]);
+    setProjects([]);
+    setIssues([]);
+    setInvitations([]);
+    setCurrentProject(null);
+    setCurrentSprint(null);
     localStorage.removeItem('standupflow_user');
     localStorage.removeItem('standupflow_role');
     localStorage.removeItem('standupflow_auth');
@@ -633,8 +686,8 @@ export const AppProvider = ({ children }) => {
       leadId: currentUser?.id ? String(currentUser.id) : '1',
       color: projData.color || '#2563eb',
       inviteCode: `INV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      memberEmails: currentUser?.email || currentUser?.emailid || '',
-      memberIds: currentUser?.id ? String(currentUser.id) : '1'
+      memberEmails: projData.memberEmails !== undefined ? projData.memberEmails : (currentUser?.email || currentUser?.emailid || ''),
+      memberIds: projData.memberIds !== undefined ? projData.memberIds : (currentUser?.id ? String(currentUser.id) : '1')
     };
 
     let savedProj = newProj;
@@ -729,30 +782,36 @@ export const AppProvider = ({ children }) => {
   };
 
   // Helper to test if task is assigned to user
-  const isTaskAssignedToUser = (task, user) => {
+  const isTaskAssignedToUser = (task, user = currentUser) => {
     if (!task || !user) return false;
     const uId = user.id ? String(user.id).trim() : '';
-    const uName = user.name ? user.name.toLowerCase().trim() : '';
-    const uEmail = user.email ? user.email.toLowerCase().trim() : '';
+    const uName = (user.name || user.fullname) ? String(user.name || user.fullname).toLowerCase().trim() : '';
+    const uEmail = (user.email || user.emailid) ? String(user.email || user.emailid).toLowerCase().trim() : '';
 
     if (task.assigneeIds && Array.isArray(task.assigneeIds)) {
-      if (task.assigneeIds.map(String).includes(uId)) return true;
+      const cleanIds = task.assigneeIds.map(String).map(s => s.trim()).filter(Boolean);
+      if (uId && cleanIds.includes(uId)) return true;
     }
 
-    if (task.assigneeId) {
-      const ids = String(task.assigneeId).split(',').map(s => s.trim());
-      if (ids.includes(uId)) return true;
+    if (task.assigneeId && String(task.assigneeId).trim()) {
+      const ids = String(task.assigneeId).split(',').map(s => s.trim()).filter(Boolean);
+      if (uId && ids.some(id => id.toLowerCase() === uId.toLowerCase())) return true;
+      if (uEmail && ids.some(id => id.toLowerCase() === uEmail)) return true;
     }
 
-    if (task.assigneeName && uName) {
-      const names = String(task.assigneeName).split(',').map(s => s.toLowerCase().trim());
-      if (names.some(n => n === uName || n.includes(uName))) return true;
-    }
-
-    if (task.assigneeEmail && uEmail) {
-      const emails = String(task.assigneeEmail).split(',').map(s => s.toLowerCase().trim());
+    if (task.assigneeEmail && String(task.assigneeEmail).trim() && uEmail) {
+      const emails = String(task.assigneeEmail).split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
       if (emails.includes(uEmail)) return true;
     }
+
+    if (task.assigneeName && String(task.assigneeName).trim() && uName) {
+      const names = String(task.assigneeName).split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
+      if (names.some(n => n !== 'unassigned' && n === uName)) return true;
+    }
+
+    if (task.testerId && uId && String(task.testerId).trim().toLowerCase() === uId.toLowerCase()) return true;
+    if (task.testerEmail && uEmail && String(task.testerEmail).trim().toLowerCase() === uEmail) return true;
+    if (task.testerName && uName && String(task.testerName).trim().toLowerCase() !== 'unassigned' && String(task.testerName).trim().toLowerCase() === uName) return true;
 
     return false;
   };
@@ -767,9 +826,19 @@ export const AppProvider = ({ children }) => {
       message: notifData.message || '',
       timestamp: 'Just now',
       read: false,
-      linkTaskId: notifData.linkTaskId || null
+      linkTaskId: notifData.linkTaskId || null,
+      // Include who sent the notification so recipient can see the sender's name
+      reporterName: notifData.reporterName || currentUser?.name || null
     };
-    setNotifications(prev => [newNotif, ...prev]);
+
+    // Only add to local state if intended for currently logged in user
+    const isForCurrentUser = currentUser && (
+      (newNotif.userId && String(newNotif.userId) === String(currentUser.id)) ||
+      (newNotif.userEmail && currentUser.email && newNotif.userEmail.toLowerCase() === currentUser.email.toLowerCase())
+    );
+    if (isForCurrentUser) {
+      setNotifications(prev => [newNotif, ...prev]);
+    }
 
     const activeUrl = apiUrl || API_BASE_URL;
     fetch(`${activeUrl}/notifications`, {
@@ -790,7 +859,16 @@ export const AppProvider = ({ children }) => {
 
   const markAllNotificationsRead = () => {
     const activeUrl = apiUrl || API_BASE_URL;
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const currentUserId = currentUser?.id ? String(currentUser.id) : '';
+    const currentEmail = currentUser?.email ? currentUser.email.toLowerCase() : '';
+    // Only mark notifications that belong to the currently logged-in user as read
+    setNotifications(prev => prev.map(n => {
+      const nUid = n.userId != null ? String(n.userId).trim() : '';
+      const nEmail = n.userEmail ? n.userEmail.toLowerCase().trim() : '';
+      const matchesUser = (currentUserId && nUid && (nUid === currentUserId || nUid.split(',').map(s => s.trim()).includes(currentUserId)))
+                       || (currentEmail && nEmail && (nEmail === currentEmail || nEmail.split(',').map(s => s.trim()).includes(currentEmail)));
+      return matchesUser ? { ...n, read: true } : n;
+    }));
     fetch(`${activeUrl}/notifications/read-all`, {
       method: 'PUT',
       headers: getHeaders(),
@@ -847,24 +925,6 @@ export const AppProvider = ({ children }) => {
       testerName: currentUser?.name || '',
       hasIssue: false
     };
-
-    // Trigger Notification to Assigned User(s) if explicitly assigned
-    const targetAssigneeIds = newTaskData.assigneeIds && Array.isArray(newTaskData.assigneeIds)
-      ? newTaskData.assigneeIds.map(String)
-      : (task.assigneeId ? String(task.assigneeId).split(',').map(s => s.trim()) : []);
-
-    targetAssigneeIds.forEach(uId => {
-      const targetUser = users.find(u => String(u.id) === String(uId));
-      if (targetUser && targetUser.id !== currentUser?.id) {
-        addNotification({
-          userId: targetUser.id,
-          userEmail: targetUser.email,
-          title: 'New Task Assigned',
-          message: `${currentUser?.name || 'Manager'} assigned task "${task.title}" (${task.id}) to ${targetUser?.name || 'you'}.`,
-          linkTaskId: task.id
-        });
-      }
-    });
 
     let savedTask = task;
     const res = await fetch(`${activeUrl}/tasks`, {
@@ -927,30 +987,6 @@ export const AppProvider = ({ children }) => {
     if (editingTask && editingTask.id === taskId) {
       setEditingTask(updatedTask);
     }
-
-    // Check newly assigned users and trigger notification
-    const newAssigneeIds = updatedTask.assigneeIds && Array.isArray(updatedTask.assigneeIds)
-      ? updatedTask.assigneeIds.map(String)
-      : (updatedTask.assigneeId ? String(updatedTask.assigneeId).split(',').map(s => s.trim()) : []);
-
-    const oldAssigneeIds = existingTask?.assigneeIds && Array.isArray(existingTask.assigneeIds)
-      ? existingTask.assigneeIds.map(String)
-      : (existingTask?.assigneeId ? String(existingTask.assigneeId).split(',').map(s => s.trim()) : []);
-
-    newAssigneeIds.forEach(uId => {
-      if (!oldAssigneeIds.includes(uId)) {
-        const targetUser = users.find(u => String(u.id) === String(uId));
-        if (targetUser && targetUser.id !== currentUser?.id) {
-          addNotification({
-            userId: targetUser.id,
-            userEmail: targetUser.email,
-            title: 'Task Assigned To You',
-            message: `${currentUser?.name || 'Manager'} assigned task "${updatedTask.title}" (${updatedTask.id}) to ${targetUser?.name || 'you'}.`,
-            linkTaskId: updatedTask.id
-          });
-        }
-      }
-    });
 
     try {
       const res = await fetch(`${activeUrl}/tasks/${taskId}`, {
@@ -1307,15 +1343,15 @@ export const AppProvider = ({ children }) => {
     if (!currentUser) {
       return { success: false, message: 'Must be logged in to send team invitations' };
     }
-    const targetProj = projects.find(p => p.id === targetProjectId) || currentProject;
-    const invCode = targetProj?.inviteCode || currentUser?.managerCode || 'PRJ-101-CODE';
+    const targetProj = targetProjectId ? projects.find(p => p.id === targetProjectId || String(p.id) === String(targetProjectId)) : null;
+    const invCode = targetProj?.inviteCode || currentUser?.managerCode || 'COMPANY-TEAM';
     const email = inviteeEmail.trim().toLowerCase();
 
     const payload = {
       managerId: currentUser.id,
       managerName: currentUser.name,
       managerCode: invCode,
-      projectId: targetProj?.id,
+      projectId: targetProj ? targetProj.id : null,
       inviteeEmail: email
     };
 
@@ -1338,7 +1374,7 @@ export const AppProvider = ({ children }) => {
       managerId: currentUser.id,
       managerName: currentUser.name,
       managerCode: invCode,
-      projectId: targetProj?.id,
+      projectId: targetProj ? targetProj.id : null,
       inviteeEmail: email,
       status: 'PENDING',
       createdAt: new Date().toISOString()
@@ -1385,6 +1421,85 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  // Directly assign an existing registered user to a project workspace
+  const addMemberToProject = async (projId, userId) => {
+    const targetProj = projects.find(p => p.id === projId || String(p.id) === String(projId));
+    const targetUser = users.find(u => u.id === userId || String(u.id) === String(userId));
+    if (!targetProj || !targetUser) return { success: false };
+
+    let mIds = typeof targetProj.memberIds === 'string'
+      ? targetProj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
+      : (targetProj.memberIds || []);
+    if (!mIds.includes(String(targetUser.id))) {
+      mIds.push(String(targetUser.id));
+    }
+
+    let mEmails = typeof targetProj.memberEmails === 'string'
+      ? targetProj.memberEmails.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      : (targetProj.memberEmails || []);
+    if (targetUser.email && !mEmails.includes(targetUser.email.toLowerCase())) {
+      mEmails.push(targetUser.email.toLowerCase());
+    }
+
+    const updated = await updateProject(targetProj.id, {
+      memberIds: mIds.join(','),
+      memberEmails: mEmails.join(',')
+    });
+
+    return { success: true, project: updated };
+  };
+
+  // Assign or unassign a user across multiple projects
+  const assignUserToProjects = async (userId, projectIds = []) => {
+    const targetUser = users.find(u => u.id === userId || String(u.id) === String(userId));
+    if (!targetUser) return;
+
+    const uId = String(targetUser.id);
+    const uEmail = targetUser.email ? targetUser.email.toLowerCase().trim() : '';
+
+    const updates = [];
+    for (const proj of projects) {
+      let mIds = typeof proj.memberIds === 'string'
+        ? proj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
+        : (proj.memberIds || []);
+      let mEmails = typeof proj.memberEmails === 'string'
+        ? proj.memberEmails.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        : (proj.memberEmails || []);
+
+      const shouldBeMember = projectIds.some(pId => String(pId) === String(proj.id));
+      let modified = false;
+
+      if (shouldBeMember) {
+        if (!mIds.includes(uId)) {
+          mIds.push(uId);
+          modified = true;
+        }
+        if (uEmail && !mEmails.includes(uEmail)) {
+          mEmails.push(uEmail);
+          modified = true;
+        }
+      } else {
+        if (mIds.includes(uId)) {
+          mIds = mIds.filter(id => id !== uId);
+          modified = true;
+        }
+        if (uEmail && mEmails.includes(uEmail)) {
+          mEmails = mEmails.filter(e => e !== uEmail);
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        updates.push(updateProject(proj.id, {
+          memberIds: mIds.join(','),
+          memberEmails: mEmails.join(',')
+        }));
+      }
+    }
+
+    await Promise.all(updates);
+  };
+
   // Accept Team Invitation (Developer / Tester)
   const acceptInvitation = async (invitationId) => {
     if (!currentUser) return { success: false };
@@ -1406,43 +1521,39 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(updatedUser);
       setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
 
-      // Find matching project in ALL projects and add user to project member list UPON ACCEPTANCE
-      const targetProj = projects.find(p => 
-        p.id === projId || 
-        String(p.id) === String(projId) || 
-        p.inviteCode === code || 
-        p.code === code || 
-        p.leadId === targetInv.managerId
-      );
-      if (targetProj) {
-        let emails = typeof targetProj.memberEmails === 'string'
-          ? targetProj.memberEmails.split(',').map(s => s.trim()).filter(Boolean)
-          : (targetProj.memberEmails || []);
-        if (currentUser.email && !emails.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase())) {
-          emails.push(currentUser.email.toLowerCase());
+      // ONLY if invitation specifically designated a project ID, add user to that project
+      if (projId && projId.trim()) {
+        const targetProj = projects.find(p => p.id === projId || String(p.id) === String(projId));
+        if (targetProj) {
+          let emails = typeof targetProj.memberEmails === 'string'
+            ? targetProj.memberEmails.split(',').map(s => s.trim()).filter(Boolean)
+            : (targetProj.memberEmails || []);
+          if (currentUser.email && !emails.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase())) {
+            emails.push(currentUser.email.toLowerCase());
+          }
+
+          let ids = typeof targetProj.memberIds === 'string'
+            ? targetProj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
+            : (targetProj.memberIds || []);
+          if (currentUser.id && !ids.includes(currentUser.id)) {
+            ids.push(currentUser.id);
+          }
+
+          const updatedProj = {
+            ...targetProj,
+            memberEmails: emails.join(','),
+            memberIds: ids.join(',')
+          };
+
+          setProjects(prev => prev.map(p => p.id === targetProj.id ? updatedProj : p));
+          setCurrentProject(updatedProj);
+
+          fetch(`${activeUrl}/projects/${targetProj.id}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(updatedProj)
+          }).catch(() => {});
         }
-
-        let ids = typeof targetProj.memberIds === 'string'
-          ? targetProj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
-          : (targetProj.memberIds || []);
-        if (currentUser.id && !ids.includes(currentUser.id)) {
-          ids.push(currentUser.id);
-        }
-
-        const updatedProj = {
-          ...targetProj,
-          memberEmails: emails.join(','),
-          memberIds: ids.join(',')
-        };
-
-        setProjects(prev => prev.map(p => p.id === targetProj.id ? updatedProj : p));
-        setCurrentProject(updatedProj);
-
-        fetch(`${activeUrl}/projects/${targetProj.id}`, {
-          method: 'PUT',
-          headers: getHeaders(),
-          body: JSON.stringify(updatedProj)
-        }).catch(() => {});
       }
 
       setInvitations(prev => prev.map(i => i.id === invitationId ? { ...i, status: 'ACCEPTED' } : i));
@@ -1523,33 +1634,85 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  // Filter projects strictly available to currentUser
-  const userProjects = projects.filter(p => {
-    if (!currentUser) return true;
-    if (p.leadId === currentUser.id || p.lead === currentUser.name) return true;
-    if (p.ownerEmail && currentUser.email && p.ownerEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+  // Check if a user is the primary root administrator
+  const isUserAdmin = (userToLookup = currentUser) => {
+    if (!userToLookup) return false;
+    return Boolean(userToLookup.rootadmin === 1 || String(userToLookup.rootadmin) === '1');
+  };
 
+  // Filter tasks strictly available to currentUser
+  const userTasks = isUserAdmin() 
+    ? tasks 
+    : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
+
+  // Check if a project is assigned to a user
+  const isUserAssignedToProject = (proj, user = currentUser) => {
+    if (!proj || !user) return false;
+    if (isUserAdmin(user)) return true;
+
+    const uId = user.id ? String(user.id).trim() : '';
+    const uEmail = user.email ? user.email.toLowerCase().trim() : '';
+    const uName = (user.name || user.fullname) ? String(user.name || user.fullname).toLowerCase().trim() : '';
+
+    // 1. Check if user has tasks in this project
+    if (userTasks.some(t => t.projectId === proj.id || String(t.projectId) === String(proj.id))) return true;
+
+    // 2. Check if user is in memberIds
     let mIds = [];
-    if (Array.isArray(p.memberIds)) mIds = p.memberIds.map(String);
-    else if (typeof p.memberIds === 'string') mIds = p.memberIds.split(',').map(s => s.trim()).filter(Boolean);
-    if (currentUser.id && mIds.includes(String(currentUser.id))) return true;
+    if (Array.isArray(proj.memberIds)) mIds = proj.memberIds.map(String);
+    else if (typeof proj.memberIds === 'string') mIds = proj.memberIds.split(',').map(s => s.trim());
+    if (uId && mIds.includes(uId)) return true;
 
+    // 3. Check if user is in memberEmails
     let mEmails = [];
-    if (Array.isArray(p.memberEmails)) mEmails = p.memberEmails.map(e => String(e).toLowerCase().trim());
-    else if (typeof p.memberEmails === 'string') mEmails = p.memberEmails.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    if (currentUser.email && mEmails.includes(currentUser.email.toLowerCase().trim())) return true;
+    if (Array.isArray(proj.memberEmails)) mEmails = proj.memberEmails.map(e => String(e).toLowerCase().trim());
+    else if (typeof proj.memberEmails === 'string') mEmails = proj.memberEmails.split(',').map(e => e.toLowerCase().trim());
+    if (uEmail && mEmails.includes(uEmail)) return true;
 
-    // Check if user's managerCode matches project inviteCode or code
-    if (currentUser.managerCode && (currentUser.managerCode === p.inviteCode || currentUser.managerCode === p.code)) return true;
+    // 4. Check if user is lead
+    if (uId && (String(proj.leadId) === uId || proj.lead === user.name)) return true;
 
-    // Check if user has an accepted invitation for this project
-    const hasAccepted = (invitations || []).some(inv => 
-      inv.status === 'ACCEPTED' && 
-      (inv.projectId === p.id || String(inv.projectId) === String(p.id) || inv.managerCode === p.inviteCode || inv.managerCode === p.code) &&
-      inv.inviteeEmail?.toLowerCase() === currentUser.email?.toLowerCase()
-    );
+    return false;
+  };
 
-    return hasAccepted;
+  // Filter projects strictly available to currentUser
+  const userProjects = isUserAdmin()
+    ? projects
+    : projects.filter(p => isUserAssignedToProject(p, currentUser));
+
+  // Filter sprints strictly available to currentUser (sprints in assigned projects or with assigned tasks)
+  const userSprints = isUserAdmin()
+    ? sprints
+    : sprints.filter(s => {
+        if (userTasks.some(t => t.sprintId === s.id || String(t.sprintId) === String(s.id))) return true;
+        if (s.projectId && userProjects.some(p => p.id === s.projectId || String(p.id) === String(s.projectId))) return true;
+        return false;
+      });
+
+  // Filter issues strictly available to currentUser
+  const userIssues = isUserAdmin()
+    ? issues
+    : issues.filter(i => {
+        if (!currentUser) return false;
+        const uId = currentUser.id ? String(currentUser.id).trim() : '';
+        const uName = (currentUser.name || currentUser.fullname) ? String(currentUser.name || currentUser.fullname).toLowerCase().trim() : '';
+        if (uId && (String(i.assigneeId) === uId || String(i.reporterId) === uId)) return true;
+        if (uName && (i.assigneeName?.toLowerCase() === uName || i.reporterName?.toLowerCase() === uName)) return true;
+        if (userTasks.some(t => t.id === i.linkedTaskId)) return true;
+        return false;
+      });
+
+  // Filter notifications strictly available to currentUser (only notifications targeted to this user)
+  const userNotifications = (notifications || []).filter(n => {
+    if (!currentUser || !n) return false;
+    const uId = currentUser.id ? String(currentUser.id).trim() : '';
+    const uEmail = currentUser.email ? String(currentUser.email).toLowerCase().trim() : '';
+    const nUid = n.userId !== undefined && n.userId !== null ? String(n.userId).trim() : '';
+    const nEmail = n.userEmail ? String(n.userEmail).toLowerCase().trim() : '';
+
+    const matchesId = uId && nUid && (nUid === uId || nUid.split(',').map(s => s.trim()).includes(uId));
+    const matchesEmail = uEmail && nEmail && (nEmail === uEmail || nEmail.split(',').map(s => s.trim()).includes(uEmail));
+    return matchesId || matchesEmail;
   });
 
   // Synchronize currentProject strictly with userProjects
@@ -1563,11 +1726,24 @@ export const AppProvider = ({ children }) => {
         setCurrentProject(null);
       }
     }
-  }, [currentUser, projects]);
+  }, [currentUser, projects, tasks]);
 
-  const selectedTask = tasks.find(t => t.id === selectedTaskId) || tasks[0];
-  const selectedIssue = issues.find(i => i.id === selectedIssueId) || issues[0];
-  const selectedSprint = sprints.find(s => s.id === selectedSprintId) || sprints[0];
+  // Synchronize currentSprint strictly with userSprints
+  useEffect(() => {
+    if (userSprints && userSprints.length > 0) {
+      if (!currentSprint || !userSprints.some(s => s.id === currentSprint.id)) {
+        setCurrentSprint(userSprints[0]);
+      }
+    } else {
+      if (currentSprint !== null) {
+        setCurrentSprint(null);
+      }
+    }
+  }, [currentUser, sprints, tasks]);
+
+  const selectedTask = userTasks.find(t => t.id === selectedTaskId) || userTasks[0] || null;
+  const selectedIssue = userIssues.find(i => i.id === selectedIssueId) || userIssues[0] || null;
+  const selectedSprint = userSprints.find(s => s.id === selectedSprintId) || userSprints[0] || null;
 
   const fetchUsers = async () => {
     const activeUrl = apiUrl || API_BASE_URL;
@@ -1601,15 +1777,22 @@ export const AppProvider = ({ children }) => {
         currentProject,
         getProjectMembers,
         isTaskAssignedToUser,
+        isUserAdmin,
         addNotification,
         markNotificationRead,
         markAllNotificationsRead,
-        sprints,
+        sprints: userSprints,
         currentSprint,
-        tasks,
-        issues,
+        tasks: userTasks,
+        issues: userIssues,
+        allTasks: tasks,
+        allProjects: projects,
+        allSprints: sprints,
+        allIssues: issues,
         workSessions,
-        notifications,
+        notifications: userNotifications,
+        userNotifications,
+        allNotifications: notifications,
         performanceReviews,
         invitations,
         currentView,
@@ -1665,6 +1848,9 @@ export const AppProvider = ({ children }) => {
         acceptInvitation,
         declineInvitation,
         removeMemberFromProject,
+        addMemberToProject,
+        assignUserToProjects,
+        isUserAssignedToProject,
         navigateTo,
         createTask,
         updateTask,

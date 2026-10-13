@@ -27,9 +27,103 @@ public class TaskController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.standupflow.repository.ProjectRepository projectRepository;
+
     @GetMapping
-    public List<TaskItem> getAllTasks() {
-        return taskRepository.findAll();
+    public List<TaskItem> getAllTasks(
+            @RequestParam(required = false) String projectId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
+        List<TaskItem> all = (projectId != null && !projectId.isBlank())
+                ? taskRepository.findByProjectId(projectId.trim())
+                : taskRepository.findAll();
+
+        boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
+        if (isRootAdmin) {
+            return all;
+        }
+
+        String finalUserId = userId != null ? userId.trim() : "";
+        String finalEmail = userEmail != null ? userEmail.trim().toLowerCase() : "";
+        String finalName = userName != null ? userName.trim().toLowerCase() : "";
+
+        // Non-admin without any identification should not see tasks
+        if (finalUserId.isEmpty() && finalEmail.isEmpty() && finalName.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return all.stream().filter(task -> isTaskAssignedToUser(task, finalUserId, finalEmail, finalName))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    private boolean isTaskAssignedToUser(TaskItem task, String userId, String email, String name) {
+        if (task == null) return false;
+
+        // Check assigneeId (comma-separated or single)
+        if (task.getAssigneeId() != null && !task.getAssigneeId().isBlank()) {
+            String[] parts = task.getAssigneeId().split(",");
+            for (String p : parts) {
+                String trimmed = p.trim();
+                if (!trimmed.isEmpty()) {
+                    if (!userId.isEmpty() && trimmed.equalsIgnoreCase(userId)) return true;
+                    if (!email.isEmpty() && trimmed.equalsIgnoreCase(email)) return true;
+                }
+            }
+        }
+
+
+        // Check assigneeName (strict match; NEVER match "unassigned" or blank)
+        if (task.getAssigneeName() != null && !task.getAssigneeName().isBlank() && !name.isEmpty()) {
+            String[] parts = task.getAssigneeName().split(",");
+            for (String p : parts) {
+                String trimmed = p.trim().toLowerCase();
+                if (!trimmed.isEmpty() && !trimmed.equalsIgnoreCase("unassigned") && trimmed.equalsIgnoreCase(name)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check testerId / testerName
+        if (!userId.isEmpty() && task.getTesterId() != null && userId.equalsIgnoreCase(task.getTesterId().trim())) return true;
+        if (!name.isEmpty() && task.getTesterName() != null && !task.getTesterName().isBlank()) {
+            String tName = task.getTesterName().trim().toLowerCase();
+            if (!tName.isEmpty() && !tName.equalsIgnoreCase("unassigned") && tName.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void linkAssigneeToProject(TaskItem task) {
+        if (task.getProjectId() == null || task.getProjectId().isBlank() || task.getAssigneeId() == null || task.getAssigneeId().isBlank()) {
+            return;
+        }
+        projectRepository.findById(task.getProjectId()).ifPresent(proj -> {
+            boolean changed = false;
+            String memberIds = proj.getMemberIds() != null ? proj.getMemberIds() : "";
+            Set<String> idSet = new HashSet<>(Arrays.asList(memberIds.split(",")));
+            idSet.remove("");
+
+            String[] assignees = task.getAssigneeId().split(",");
+            for (String aId : assignees) {
+                String clean = aId.trim();
+                if (!clean.isEmpty() && !idSet.contains(clean)) {
+                    idSet.add(clean);
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                proj.setMemberIds(String.join(",", idSet));
+                projectRepository.save(proj);
+            }
+        });
     }
 
     @GetMapping("/{id}")
@@ -65,7 +159,11 @@ public class TaskController {
             task.setUpdatedAt(LocalDateTime.now().toString());
         }
         TaskItem saved = taskRepository.save(task);
-        createNotificationsForTask(saved, "New Task Assigned");
+        linkAssigneeToProject(saved);
+        // Only create notifications when there is an explicit assignee
+        if (saved.getAssigneeId() != null && !saved.getAssigneeId().isBlank()) {
+            createNotificationsForTask(saved, "New Task Assigned");
+        }
         return saved;
     }
 
@@ -108,6 +206,7 @@ public class TaskController {
             else task.setUpdatedAt(LocalDateTime.now().toString());
 
             TaskItem updated = taskRepository.save(task);
+            linkAssigneeToProject(updated);
 
             // Trigger notification if assignee changed or assigned
             if (taskDetails.getAssigneeId() != null && !taskDetails.getAssigneeId().isBlank() && !taskDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
@@ -128,9 +227,11 @@ public class TaskController {
     }
 
     private void createNotificationsForTask(TaskItem task, String notifTitle) {
-        if (task.getAssigneeId() == null || task.getAssigneeId().isBlank()) return;
+        String rawAssignees = task.getAssigneeId();
+        // Only proceed if a real assignee ID is set — never use assigneeName as a fallback
+        if (rawAssignees == null || rawAssignees.isBlank() || "unassigned".equalsIgnoreCase(rawAssignees.trim())) return;
 
-        String[] assigneeIds = task.getAssigneeId().split(",");
+        String[] assigneeIds = rawAssignees.split(",");
         String senderName = task.getReporterName() != null && !task.getReporterName().isBlank() ? task.getReporterName() : "Manager";
 
         for (String aId : assigneeIds) {
@@ -140,6 +241,12 @@ public class TaskController {
             Optional<User> userOpt = userRepository.findById(cleanId);
             if (userOpt.isEmpty()) {
                 userOpt = userRepository.findByEmail(cleanId);
+            }
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByUsername(cleanId);
+            }
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findByUsernameOrEmailidOrFullname(cleanId, cleanId, cleanId);
             }
 
             String userId = cleanId;

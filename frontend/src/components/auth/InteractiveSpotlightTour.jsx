@@ -1000,9 +1000,9 @@ export const InteractiveSpotlightTour = () => {
             <button
               onClick={handleSkip}
               className="text-slate-400 hover:text-slate-700 p-1 rounded-md text-xs font-semibold flex items-center transition-colors hover:bg-slate-200/60"
-              title="Skip Tutorial"
+              title="Dismiss Guide"
             >
-              <span className="text-[11px] mr-1">Skip</span>
+              <span className="text-[11px] mr-1">Dismiss Guide</span>
               <X className="w-3.5 h-3.5" />
             </button>
           </div>

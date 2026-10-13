@@ -56,6 +56,9 @@ public class User {
     @JoinColumn(name = "id", referencedColumnName = "user_id", insertable = false, updatable = false)
     private UserMetrics metrics;
 
+    @Transient
+    private String roleName;
+
     public User() {}
 
     public User(String id, String username, String fullname, String emailid, String userpassword, Integer roleCode, Integer rootadmin, Integer enable, String avatar, String department, String managerCode, String companyId) {
@@ -156,7 +159,26 @@ public class User {
 
     public String getRole() {
         if (role == null || role == 1) return "ADMIN";
+        if (role == 2) return "MANAGER";
+        if (role == 3) return "DEVELOPER";
+        if (role == 4) return "TESTER";
         return String.valueOf(role);
+    }
+
+    public String getRoleName() {
+        if (roleName != null && !roleName.trim().isEmpty() && !roleName.startsWith("Role ")) {
+            return roleName;
+        }
+        if (rootadmin != null && rootadmin == 1) return "Company Administrator (Root)";
+        if (role == null || role == 1) return "Company Administrator";
+        if (role == 2) return "Engineering Manager";
+        if (role == 3) return "Software Engineer";
+        if (role == 4) return "QA / Tester";
+        return role != null ? "Role (" + role + ")" : "User";
+    }
+
+    public void setRoleName(String roleName) {
+        this.roleName = roleName;
     }
 
     public void setRole(Object roleInput) {

@@ -26,7 +26,9 @@ export const KanbanView = () => {
     setSearchQuery,
     sprints,
     users,
-    currentProject
+    currentProject,
+    isUserAdmin,
+    isTaskAssignedToUser
   } = useApp();
 
   const teamMembers = !currentProject ? [] : users.filter(u => {
@@ -49,12 +51,13 @@ export const KanbanView = () => {
 
   const filteredTasks = !currentProject ? [] : tasks.filter(task => {
     const isCurrentProj = task.projectId === currentProject?.id || String(task.projectId) === String(currentProject?.id);
+    const isAssigned = isUserAdmin() || isTaskAssignedToUser(task, currentUser);
     const matchesSearch = !searchQuery || 
       task.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesPriority = selectedPriority === 'ALL' || task.priority === selectedPriority;
     const matchesAssignee = selectedAssignee === 'ALL' || task.assigneeId === selectedAssignee;
-    return isCurrentProj && matchesSearch && matchesPriority && matchesAssignee;
+    return isCurrentProj && isAssigned && matchesSearch && matchesPriority && matchesAssignee;
   });
 
   return (
@@ -101,14 +104,25 @@ export const KanbanView = () => {
       </div>
 
       {/* 4 Column Kanban Canvas */}
-      <div id="tasks-kanban-board" className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-hidden pb-2">
-        {columns.map(col => {
-          const colTasks = filteredTasks.filter(t => t.status === col.id);
-          return (
-            <div
-              key={col.id}
-              className="bg-slate-50/80 rounded-lg border border-slate-200 flex flex-col h-full overflow-hidden"
-            >
+      {!currentProject ? (
+        <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col items-center justify-center p-8 text-center">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3">
+            <KanbanIcon className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-800">No Project Workspace Assigned</h3>
+          <p className="text-xs text-slate-500 max-w-sm mt-1">
+            You haven't been assigned to any project workspace or task yet. Once your administrator assigns you to a task, it will appear on your board.
+          </p>
+        </div>
+      ) : (
+        <div id="tasks-kanban-board" className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-hidden pb-2">
+          {columns.map(col => {
+            const colTasks = filteredTasks.filter(t => t.status === col.id);
+            return (
+              <div
+                key={col.id}
+                className="bg-slate-50/80 rounded-lg border border-slate-200 flex flex-col h-full overflow-hidden"
+              >
               {/* Column Header */}
               <div className="p-3 border-b border-slate-200 bg-white flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -245,7 +259,8 @@ export const KanbanView = () => {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

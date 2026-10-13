@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 
 export const ProjectHealthDashboard = () => {
-  const { projects, setCurrentProject, navigateTo, setIsCreateProjectModalOpen, openEditProjectModal } = useApp();
+  const { projects, setCurrentProject, navigateTo, setIsCreateProjectModalOpen, openEditProjectModal, currentRole, tasks, isUserAdmin, hasPermission } = useApp();
+  const canCreate = (isUserAdmin ? isUserAdmin() : false) || (hasPermission ? hasPermission('header_create_actions') : false);
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -29,13 +30,15 @@ export const ProjectHealthDashboard = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsCreateProjectModalOpen(true)}
-          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors flex items-center space-x-1.5 cursor-pointer self-start md:self-auto"
-        >
-          <FolderPlus className="w-4 h-4" />
-          <span>Create Project</span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setIsCreateProjectModalOpen(true)}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors flex items-center space-x-1.5 cursor-pointer self-start md:self-auto"
+          >
+            <FolderPlus className="w-4 h-4" />
+            <span>Create Project</span>
+          </button>
+        )}
       </div>
 
       {/* Project Health Cards Grid */}
@@ -46,16 +49,22 @@ export const ProjectHealthDashboard = () => {
               <FolderPlus className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">No Project Workspaces Yet</h3>
-              <p className="text-xs text-slate-500 mt-1">Get started by creating your first project workspace.</p>
+              <h3 className="text-sm font-bold text-slate-900">{canCreate ? 'No Project Workspaces Yet' : 'No Project Workspaces Assigned'}</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {canCreate
+                  ? 'Get started by creating your first project workspace.'
+                  : 'You have not been assigned to any project workspace yet. Once tasks are assigned by your administrator, they will appear here.'}
+              </p>
             </div>
-            <button
-              onClick={() => setIsCreateProjectModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs inline-flex items-center space-x-2 cursor-pointer"
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span>Create First Project</span>
-            </button>
+            {canCreate && (
+              <button
+                onClick={() => setIsCreateProjectModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs inline-flex items-center space-x-2 cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>Create First Project</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -64,7 +73,13 @@ export const ProjectHealthDashboard = () => {
             key={proj.id}
             onClick={() => {
               setCurrentProject(proj);
-              navigateTo('dashboard');
+              if (currentRole === 'DEVELOPER') {
+                navigateTo('developer_workspace');
+              } else if (currentRole === 'TESTER') {
+                navigateTo('tester_workspace');
+              } else {
+                navigateTo('dashboard');
+              }
             }}
             className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs hover:border-blue-400 cursor-pointer transition-all space-y-4"
           >
@@ -85,16 +100,18 @@ export const ProjectHealthDashboard = () => {
                 }`}>
                   {proj.status}
                 </span>
-                <button
-                  title="Edit Project Settings"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEditProjectModal(proj);
-                  }}
-                  className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
+                {canCreate && (
+                  <button
+                    title="Edit Project Settings"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEditProjectModal(proj);
+                    }}
+                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -108,7 +125,14 @@ export const ProjectHealthDashboard = () => {
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">Tasks Done</span>
-                <span className="font-mono font-bold text-emerald-600">{proj.completedTasks}/{proj.totalTasks}</span>
+                <span className="font-mono font-bold text-emerald-600">
+                  {(() => {
+                    const projTasks = (tasks || []).filter(t => t.projectId === proj.id || String(t.projectId) === String(proj.id));
+                    const totalCount = isUserAdmin() ? (proj.totalTasks || projTasks.length) : projTasks.length;
+                    const doneCount = isUserAdmin() ? (proj.completedTasks || 0) : projTasks.filter(t => t.status === 'Completed').length;
+                    return `${doneCount}/${totalCount}`;
+                  })()}
+                </span>
               </div>
               <div>
                 <span className="text-slate-400 text-[10px] uppercase font-bold block">Open Issues</span>

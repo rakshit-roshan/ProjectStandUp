@@ -27,6 +27,7 @@ export const Header = () => {
     currentProject,
     setCurrentProject,
     notifications,
+    userNotifications: contextUserNotifs,
     markNotificationRead,
     markAllNotificationsRead,
     setIsCreateTaskModalOpen,
@@ -40,21 +41,28 @@ export const Header = () => {
     navigateTo,
     logout,
     sidebarCollapsed,
-    setSidebarCollapsed
+    setSidebarCollapsed,
+    isUserAdmin,
+    hasPermission
   } = useApp();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
 
-  const userNotifications = (notifications || []).filter(n => 
-    !n.userId || 
-    String(n.userId) === String(currentUser?.id) || 
-    (n.userEmail && currentUser?.email && n.userEmail.toLowerCase() === currentUser.email.toLowerCase())
-  );
-  const unreadNotifs = userNotifications.filter(n => !n.read);
+  const userNotifications = contextUserNotifs || (notifications || []).filter(n => {
+    if (!currentUser || !n) return false;
+    const uid = String(currentUser.id || '');
+    const email = (currentUser.email || '').toLowerCase().trim();
+    const nUid = n.userId !== undefined && n.userId !== null ? String(n.userId).trim() : '';
+    const nEmail = n.userEmail ? String(n.userEmail).toLowerCase().trim() : '';
+    return (uid && nUid && (nUid === uid || nUid.split(',').map(s => s.trim()).includes(uid))) ||
+           (email && nEmail && (nEmail === email || nEmail.split(',').map(s => s.trim()).includes(email)));
+  });
+  const unreadNotifs = userNotifications.filter(n => !(n.read || n.isRead));
   const hasNoProjects = !projects || projects.length === 0 || !currentProject;
-  const isAdmin = currentUser?.rootadmin === 1 || String(currentRole) === '1' || currentRole === 'ADMIN' || currentRole === 'ROOT';
+  const isAdmin = isUserAdmin ? isUserAdmin() : Boolean(currentUser?.rootadmin === 1);
+  const canCreateQuick = isAdmin || (hasPermission ? hasPermission('header_create_actions') : false);
   const isAssigned = isAdmin || currentRole === 'MANAGER' || Boolean(currentUser?.managerCode);
   const disabledClass = (!isAssigned || hasNoProjects) ? 'opacity-40 cursor-not-allowed pointer-events-none' : '';
 
@@ -65,7 +73,7 @@ export const Header = () => {
 
   let badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200/80';
   let RoleIcon = Shield;
-  if (isAdmin || userRoleCode === 1) {
+  if (isAdmin) {
     badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200/80';
     RoleIcon = Shield;
   } else if (userRoleCode === 2) {
@@ -150,7 +158,7 @@ export const Header = () => {
             className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 transition-all"
           >
             <Calendar className="w-3.5 h-3.5 text-blue-600" />
-            <span className="max-w-[130px] truncate">{currentProject?.name || 'StandupFlow Core'}</span>
+            <span className="max-w-[130px] truncate">{currentProject?.name || 'No Project Assigned'}</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
@@ -161,7 +169,12 @@ export const Header = () => {
                 <span className="font-mono text-slate-400">{projects.length} Total</span>
               </div>
               <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
-                {projects.map((proj) => (
+                {projects.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-xs text-slate-400">
+                    No project workspaces assigned.
+                  </div>
+                ) : (
+                  projects.map((proj) => (
                   <div
                     key={proj.id}
                     onClick={() => {
@@ -179,34 +192,38 @@ export const Header = () => {
 
                     <div className="flex items-center space-x-1.5 shrink-0">
                       <span className="text-[10px] text-slate-400 font-mono px-1.5 py-0.5 bg-slate-100 rounded">{proj.code}</span>
-                      <button
-                        title="Edit Project Settings"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsProjectDropdownOpen(false);
-                          openEditProjectModal(proj);
-                        }}
-                        className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-100/60 transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
+                      {canCreateQuick && (
+                        <button
+                          title="Edit Project Settings"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsProjectDropdownOpen(false);
+                            openEditProjectModal(proj);
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-100/60 transition-colors"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))}
+                )))}
               </div>
 
-              <div className="pt-2 mt-1 border-t border-slate-100 px-2">
-                <button
-                  onClick={() => {
-                    setIsProjectDropdownOpen(false);
-                    setIsCreateProjectModalOpen(true);
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center space-x-2 transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Create New Project</span>
-                </button>
-              </div>
+              {canCreateQuick && (
+                <div className="pt-2 mt-1 border-t border-slate-100 px-2">
+                  <button
+                    onClick={() => {
+                      setIsProjectDropdownOpen(false);
+                      setIsCreateProjectModalOpen(true);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center space-x-2 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Create New Project</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -228,7 +245,7 @@ export const Header = () => {
               <AlertTriangle className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Report Bug</span>
             </button>
-          ) : (
+          ) : canCreateQuick ? (
             <div className="flex items-center space-x-2">
               <button
                 id="quick-new-sprint-btn"
@@ -259,7 +276,7 @@ export const Header = () => {
                 <span className="hidden sm:inline">New Task</span>
               </button>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Notifications Popover */}
@@ -302,7 +319,7 @@ export const Header = () => {
                         setIsNotifOpen(false);
                       }}
                       className={`p-3 text-xs cursor-pointer hover:bg-slate-50 transition-colors ${
-                        !notif.read ? 'bg-blue-50/50 border-l-2 border-blue-600' : ''
+                        !(notif.read || notif.isRead) ? 'bg-blue-50/50 border-l-2 border-blue-600' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -310,6 +327,11 @@ export const Header = () => {
                         <span className="text-[10px] text-slate-400">{notif.timestamp}</span>
                       </div>
                       <p className="text-slate-600 text-[11px] leading-snug">{notif.message}</p>
+                      {(notif.reporterName || notif.reporter_name) && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          From: <span className="text-slate-500">{notif.reporterName || notif.reporter_name}</span>
+                        </p>
+                      )}
                     </div>
                   ))
                 )}

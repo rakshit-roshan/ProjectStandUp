@@ -20,11 +20,14 @@ export const BacklogView = () => {
     updateTask,
     setIsCreateTaskModalOpen,
     setSelectedTaskId,
-    setIsTaskDrawerOpen
+    setIsTaskDrawerOpen,
+    currentUser,
+    isUserAdmin,
+    isTaskAssignedToUser
   } = useApp();
 
-  const projectSprints = !currentProject ? [] : sprints.filter(s => s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id));
-  const backlogTasks = !currentProject ? [] : tasks.filter(t => t.status === 'Backlog' && (t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id)));
+  const backlogTasks = !currentProject ? [] : tasks.filter(t => t.status === 'Backlog' && (t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id)) && (isUserAdmin() || isTaskAssignedToUser(t, currentUser)));
+  const projectSprints = !currentProject ? [] : sprints.filter(s => (s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)) && (isUserAdmin() || tasks.some(t => (t.sprintId === s.id || String(t.sprintId) === String(s.id)) && isTaskAssignedToUser(t, currentUser))));
   const [selectedSprintTarget, setSelectedSprintTarget] = useState(projectSprints[0]?.id || currentSprint?.id || '');
 
   const moveTaskToSprint = (taskId) => {

@@ -21,10 +21,13 @@ export const SprintDetailsView = () => {
     tasks,
     currentProject,
     setIsCreateSprintModalOpen,
-    navigateTo
+    navigateTo,
+    currentUser,
+    isUserAdmin,
+    isTaskAssignedToUser
   } = useApp();
 
-  const sprintTasks = tasks.filter(t => t.sprintId === currentSprint?.id);
+  const sprintTasks = tasks.filter(t => (t.sprintId === currentSprint?.id || String(t.sprintId) === String(currentSprint?.id)) && (isUserAdmin() || isTaskAssignedToUser(t, currentUser)));
 
   // Mock burndown data for 14 days sprint
   const burndownData = [
@@ -58,7 +61,7 @@ export const SprintDetailsView = () => {
           <p className="text-xs text-slate-500 mt-0.5">{currentSprint?.goal || 'Sprint Goals & Execution'}</p>
         </div>
 
-        {sprints && sprints.length > 0 && (
+        {sprints && sprints.length > 0 ? (
           <div className="flex items-center space-x-2">
             <span className="text-xs font-semibold text-slate-500">Active Sprint:</span>
             <select
@@ -74,69 +77,83 @@ export const SprintDetailsView = () => {
               ))}
             </select>
           </div>
+        ) : (
+          <div className="text-xs text-slate-400 italic">No sprints assigned to your account.</div>
         )}
       </div>
 
       {/* Main Grid: Burndown Chart & Sprint Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Burndown Chart (2 Columns) */}
-        <div id="sprint-burndown-chart" className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-5 space-y-4 shadow-2xs">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
-                <TrendingDown className="w-4 h-4 text-blue-600" />
-                <span>Sprint Burndown Chart (Story Points Remaining)</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Compares ideal story point velocity against actual completed work</p>
+      {!currentSprint ? (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-12 text-center">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3">
+            <Zap className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-800">No Sprint Assigned</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+            You don't have any active sprints or assigned tasks in this workspace yet. When your administrator assigns you to a task within a sprint, it will appear here.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Burndown Chart (2 Columns) */}
+          <div id="sprint-burndown-chart" className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-5 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                  <TrendingDown className="w-4 h-4 text-blue-600" />
+                  <span>Sprint Burndown Chart (Story Points Remaining)</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Compares ideal story point velocity against actual completed work</p>
+              </div>
+              <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                45 Initial Pts
+              </span>
             </div>
-            <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-              45 Initial Pts
-            </span>
+
+            <div className="h-72 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={burndownData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="day" stroke="#64748b" fontSize={11} />
+                  <YAxis stroke="#64748b" fontSize={11} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                  <Line type="monotone" dataKey="ideal" name="Ideal Burndown" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="actual" name="Actual Story Pts" stroke="#2563eb" strokeWidth={3} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div className="h-72 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={burndownData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '6px', fontSize: '12px' }}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                <Line type="monotone" dataKey="ideal" name="Ideal Burndown" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="actual" name="Actual Story Pts" stroke="#2563eb" strokeWidth={3} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          {/* Sprint Summary & Team Allocation */}
+          <div className="space-y-4">
+            <div id="sprint-metrics-card" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3 text-xs">
+              <h3 className="font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+                Sprint Metrics
+              </h3>
+
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Total Tasks:</span>
+                <span className="font-mono font-bold text-slate-800">{sprintTasks.length}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Completed Tasks:</span>
+                <span className="font-mono font-bold text-emerald-600">{sprintTasks.filter(t => t.status === 'Completed').length}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">In Progress / Review:</span>
+                <span className="font-mono font-bold text-blue-600">{sprintTasks.filter(t => t.status !== 'Completed' && t.status !== 'Backlog').length}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">Sprint Goal Completion:</span>
+                <span className="font-mono font-bold text-blue-600">71%</span>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Sprint Summary & Team Allocation */}
-        <div className="space-y-4">
-          <div id="sprint-metrics-card" className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs space-y-3 text-xs">
-            <h3 className="font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Sprint Metrics
-            </h3>
-
-            <div className="flex justify-between py-1 border-b border-slate-100">
-              <span className="text-slate-500">Total Tasks:</span>
-              <span className="font-mono font-bold text-slate-800">{sprintTasks.length}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-100">
-              <span className="text-slate-500">Completed Tasks:</span>
-              <span className="font-mono font-bold text-emerald-600">{sprintTasks.filter(t => t.status === 'Completed').length}</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-100">
-              <span className="text-slate-500">In Progress / Review:</span>
-              <span className="font-mono font-bold text-blue-600">{sprintTasks.filter(t => t.status !== 'Completed' && t.status !== 'Backlog').length}</span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span className="text-slate-500">Sprint Goal Completion:</span>
-              <span className="font-mono font-bold text-blue-600">71%</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

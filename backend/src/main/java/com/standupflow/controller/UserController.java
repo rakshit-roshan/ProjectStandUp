@@ -24,11 +24,34 @@ public class UserController {
     @Autowired
     private UserMetricsRepository userMetricsRepository;
 
+    @Autowired
+    private com.standupflow.repository.RolePermissionRepository rolePermissionRepository;
+
+    private void enrichUserRoleNames(List<User> users) {
+        if (users == null || users.isEmpty()) return;
+        Map<Integer, String> customRoleNames = new java.util.HashMap<>();
+        try {
+            List<com.standupflow.model.RolePermission> rolePerms = rolePermissionRepository.findAll();
+            for (com.standupflow.model.RolePermission rp : rolePerms) {
+                if (rp.getRoleCode() != null && rp.getRoleName() != null && !rp.getRoleName().trim().isEmpty()) {
+                    customRoleNames.put(rp.getRoleCode(), rp.getRoleName().trim());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        for (User u : users) {
+            if (u.getRoleCode() != null && customRoleNames.containsKey(u.getRoleCode())) {
+                u.setRoleName(customRoleNames.get(u.getRoleCode()));
+            }
+        }
+    }
+
     @GetMapping
     public List<User> getAllUsers() {
         String activeDb = com.standupflow.config.TenantContext.getDatabaseName();
         String activeComp = com.standupflow.config.TenantContext.getCompanyId();
         List<User> users = userRepository.findAll();
+        enrichUserRoleNames(users);
         System.out.println("[UserController] GET /api/v1/users -> Active Tenant: " + activeComp + " | DB: " + activeDb + " | Returned Count: " + users.size());
         return users;
     }
@@ -36,7 +59,10 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable String id) {
         return userRepository.findById(id)
-                .map(ResponseEntity::ok)
+                .map(user -> {
+                    enrichUserRoleNames(java.util.Collections.singletonList(user));
+                    return ResponseEntity.ok(user);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 

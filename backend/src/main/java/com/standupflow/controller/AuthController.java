@@ -27,6 +27,9 @@ public class AuthController {
     @Autowired
     private TenantDatabaseService tenantDatabaseService;
 
+    @Autowired
+    private com.standupflow.repository.RolePermissionRepository rolePermissionRepository;
+
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
         String rootEmail = request.getEmail() != null ? request.getEmail().trim() : "";
@@ -111,21 +114,8 @@ public class AuthController {
         TenantContext.setTenant(targetCompanyId, targetDbName);
 
         try {
-            // 3. Query tblUser_details table in standupflow_db_<companyId> database
-            Optional<User> userOpt = userRepository.findByUsernameOrEmailOrFullname(username);
-            if (userOpt.isEmpty()) {
-                userOpt = userRepository.findByUsername(username);
-            }
-            if (userOpt.isEmpty()) {
-                userOpt = userRepository.findByEmail(username);
-            }
-            if (userOpt.isEmpty()) {
-                userOpt = userRepository.findByEmailOrName(username);
-            }
-            // Fallback for root admin logging in with admin email
-            if (userOpt.isEmpty() && reg.getRootUserEmail() != null && reg.getRootUserEmail().equalsIgnoreCase(companyIdentifier)) {
-                userOpt = userRepository.findById("1");
-            }
+            // 3. Query tblUser_details — match ONLY username or emailid, never fullname
+            Optional<User> userOpt = userRepository.findByUsernameOrEmailid(username, username);
 
             if (userOpt.isEmpty()) {
                 return ResponseEntity.status(401).body(new AuthResponse(false, "User '" + username + "' does not exist in workspace database for Company ID '" + targetCompanyId + "'", null));
@@ -143,6 +133,12 @@ public class AuthController {
                     userRepository.save(user);
                 } catch (Exception e) {
                     System.err.println("[AuthController] Warning on updating user online status: " + e.getMessage());
+                }
+                if (user.getRoleCode() != null && user.getRoleCode() > 4) {
+                    try {
+                        rolePermissionRepository.findByRoleCode(user.getRoleCode())
+                            .ifPresent(rp -> user.setRoleName(rp.getRoleName()));
+                    } catch (Exception ignored) {}
                 }
                 return ResponseEntity.ok(new AuthResponse(true, "Login successful", user, targetCompanyId, targetDbName));
             } else {

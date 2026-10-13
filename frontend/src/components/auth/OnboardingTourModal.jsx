@@ -118,7 +118,7 @@ export const OnboardingTourModal = () => {
             onClick={handleSkip}
             className="absolute top-3 right-3 text-white/70 hover:text-white p-1 rounded-md text-xs font-semibold hover:bg-white/10 transition-colors flex items-center space-x-1"
           >
-            <span>Skip Tutorial</span>
+            <span>Dismiss Guide</span>
             <X className="w-4 h-4" />
           </button>
 
@@ -160,7 +160,7 @@ export const OnboardingTourModal = () => {
               onClick={handleSkip}
               className="text-xs font-medium text-slate-500 hover:text-slate-800 underline"
             >
-              Skip Tutorial
+              Dismiss Guide
             </button>
 
             <button
