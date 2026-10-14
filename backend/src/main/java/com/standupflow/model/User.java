@@ -23,7 +23,7 @@ public class User {
     private String userpassword;
 
     @Column(name = "role")
-    private Integer role = 1; // 1 = ADMIN (Root), 2 = MANAGER, 3 = DEVELOPER, 4 = TESTER
+    private Integer role; // 1 = ADMIN (Root), 2 = MANAGER, 3 = DEVELOPER, 4 = TESTER
 
     private Integer rootadmin = 0; // 1 for primary root admin, 0 for others
 

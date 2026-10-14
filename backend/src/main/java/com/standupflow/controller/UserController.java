@@ -173,36 +173,42 @@ public class UserController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // Profile Edit Endpoint
+    // Profile Edit Endpoint (Self-service profile update: Avatar, Password, Name, Department)
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUserProfile(@PathVariable String id, @RequestBody User profileData) {
+    public ResponseEntity<User> updateUserProfile(@PathVariable String id, @RequestBody Map<String, Object> profileData) {
         return userRepository.findById(id).map(user -> {
-            if (profileData.getName() != null && !profileData.getName().trim().isEmpty()) {
-                user.setName(profileData.getName());
+            if (profileData.containsKey("name") && profileData.get("name") != null) {
+                String name = profileData.get("name").toString().trim();
+                if (!name.isEmpty()) user.setName(name);
             }
-            if (profileData.getEmail() != null && !profileData.getEmail().trim().isEmpty()) {
-                user.setEmail(profileData.getEmail());
+            if (profileData.containsKey("fullname") && profileData.get("fullname") != null) {
+                String name = profileData.get("fullname").toString().trim();
+                if (!name.isEmpty()) user.setName(name);
             }
-            if (profileData.getPassword() != null && !profileData.getPassword().trim().isEmpty()) {
-                user.setPassword(profileData.getPassword());
+            if (profileData.containsKey("email") && profileData.get("email") != null) {
+                String email = profileData.get("email").toString().trim();
+                if (!email.isEmpty()) user.setEmail(email);
             }
-            if (profileData.getDepartment() != null) {
-                user.setDepartment(profileData.getDepartment());
+            if (profileData.containsKey("emailid") && profileData.get("emailid") != null) {
+                String email = profileData.get("emailid").toString().trim();
+                if (!email.isEmpty()) user.setEmail(email);
             }
-            if (profileData.getAvatar() != null && !profileData.getAvatar().trim().isEmpty()) {
-                user.setAvatar(profileData.getAvatar());
+            if (profileData.containsKey("password") && profileData.get("password") != null) {
+                String pass = profileData.get("password").toString().trim();
+                if (!pass.isEmpty()) user.setPassword(pass);
             }
-            if (profileData.getRole() != null && !profileData.getRole().trim().isEmpty()) {
-                user.setRole(profileData.getRole());
+            if (profileData.containsKey("department") && profileData.get("department") != null) {
+                user.setDepartment(profileData.get("department").toString());
             }
-            if (profileData.getEnable() != null) {
-                user.setEnable(profileData.getEnable());
+            if (profileData.containsKey("avatar") && profileData.get("avatar") != null) {
+                String av = profileData.get("avatar").toString().trim();
+                if (!av.isEmpty()) user.setAvatar(av);
             }
-            if (profileData.getManagerCode() != null) {
-                user.setManagerCode(profileData.getManagerCode());
-            }
+            // CRITICAL: NEVER overwrite user.role, roleCode, or rootadmin during self-service profile updates!
             user.setModifiedDatetime(LocalDateTime.now().toString());
-            return ResponseEntity.ok(userRepository.save(user));
+            User saved = userRepository.save(user);
+            enrichUserRoleNames(java.util.Collections.singletonList(saved));
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 

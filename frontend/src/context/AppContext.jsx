@@ -146,8 +146,8 @@ export const AppProvider = ({ children }) => {
       ? Number(currentUser.roleCode)
       : (currentUser?.role === 'ADMIN' || currentUser?.role === 1 ? 1 : Number(currentUser?.role || 1));
 
-    const roleObj = rolesPermissions.find(r => 
-      Number(r.roleCode) === userRoleCode || 
+    const roleObj = rolesPermissions.find(r =>
+      Number(r.roleCode) === userRoleCode ||
       (r.roleName && currentUser?.role && String(r.roleName).toLowerCase() === String(currentUser.role).toLowerCase())
     );
 
@@ -196,8 +196,8 @@ export const AppProvider = ({ children }) => {
     const codeNum = Number(roleInput);
 
     if (rolesPermissions && Array.isArray(rolesPermissions)) {
-      const found = rolesPermissions.find(r => 
-        Number(r.roleCode) === codeNum || 
+      const found = rolesPermissions.find(r =>
+        Number(r.roleCode) === codeNum ||
         (r.roleName && String(roleInput).toLowerCase() === String(r.roleName).toLowerCase())
       );
       if (found && found.roleName) {
@@ -402,7 +402,7 @@ export const AppProvider = ({ children }) => {
             setChatMessages(formattedMsgs);
             try {
               localStorage.setItem('standupflow_chat_messages', JSON.stringify(formattedMsgs));
-            } catch (e) {}
+            } catch (e) { }
           }
         }
         if (chatChanRes && chatChanRes.ok) {
@@ -557,7 +557,7 @@ export const AppProvider = ({ children }) => {
     if (currentUser?.id) {
       const uId = currentUser.id;
       setUsers(prev => prev.map(u => u.id === uId ? { ...u, isOnline: false } : u));
-      fetch(`${API_BASE_URL}/auth/logout/${uId}`, { method: 'POST' }).catch(() => {});
+      fetch(`${API_BASE_URL}/auth/logout/${uId}`, { method: 'POST' }).catch(() => { });
     }
     setCurrentUser(null);
     setIsAuthenticated(false);
@@ -593,9 +593,18 @@ export const AppProvider = ({ children }) => {
       }
       if (res.ok) {
         const saved = await res.json();
-        setCurrentUser(saved);
-        setUsers(prev => prev.map(u => u.id === saved.id ? saved : u));
-        return { success: true, user: saved };
+        // Securely preserve the user's assigned role, roleCode, roleName, and rootadmin
+        const merged = {
+          ...currentUser,
+          ...saved,
+          role: saved.role !== undefined && saved.role !== null ? saved.role : currentUser.role,
+          roleCode: saved.roleCode !== undefined && saved.roleCode !== null ? saved.roleCode : currentUser.roleCode,
+          roleName: saved.roleName || currentUser.roleName,
+          rootadmin: saved.rootadmin !== undefined && saved.rootadmin !== null ? saved.rootadmin : currentUser.rootadmin
+        };
+        setCurrentUser(merged);
+        setUsers(prev => prev.map(u => u.id === merged.id ? merged : u));
+        return { success: true, user: merged };
       }
     } catch (e) {
       console.warn('Profile updated locally.');
@@ -625,7 +634,7 @@ export const AppProvider = ({ children }) => {
         setUsers(prev => prev.map(u => u.id === saved.id ? saved : u));
         return { success: true, user: saved };
       }
-    } catch (e) {}
+    } catch (e) { }
     return { success: true, user: updatedUser };
   };
 
@@ -845,7 +854,7 @@ export const AppProvider = ({ children }) => {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(newNotif)
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   const markNotificationRead = (notifId) => {
@@ -854,7 +863,7 @@ export const AppProvider = ({ children }) => {
     fetch(`${activeUrl}/notifications/${notifId}/read`, {
       method: 'PUT',
       headers: getHeaders()
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   const markAllNotificationsRead = () => {
@@ -866,14 +875,14 @@ export const AppProvider = ({ children }) => {
       const nUid = n.userId != null ? String(n.userId).trim() : '';
       const nEmail = n.userEmail ? n.userEmail.toLowerCase().trim() : '';
       const matchesUser = (currentUserId && nUid && (nUid === currentUserId || nUid.split(',').map(s => s.trim()).includes(currentUserId)))
-                       || (currentEmail && nEmail && (nEmail === currentEmail || nEmail.split(',').map(s => s.trim()).includes(currentEmail)));
+        || (currentEmail && nEmail && (nEmail === currentEmail || nEmail.split(',').map(s => s.trim()).includes(currentEmail)));
       return matchesUser ? { ...n, read: true } : n;
     }));
     fetch(`${activeUrl}/notifications/read-all`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify({ userEmail: currentUser?.email, userId: currentUser?.id })
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   // Create Task REST Persist
@@ -892,9 +901,9 @@ export const AppProvider = ({ children }) => {
 
     let assignedUser = null;
     if (hasExplicitAssignee) {
-      assignedUser = users.find(u => String(u.id) === String(newTaskData.assigneeId)) || 
-                     users.find(u => u.email === newTaskData.assigneeEmail) || 
-                     null;
+      assignedUser = users.find(u => String(u.id) === String(newTaskData.assigneeId)) ||
+        users.find(u => u.email === newTaskData.assigneeEmail) ||
+        null;
     }
 
     const taskSprintId = newTaskData.sprintId !== undefined ? newTaskData.sprintId : (activeSprint?.id || '');
@@ -1058,7 +1067,7 @@ export const AppProvider = ({ children }) => {
     };
 
     if (bugData.linkedTaskId) {
-      updateTask(bugData.linkedTaskId, { hasIssue: true }).catch(() => {});
+      updateTask(bugData.linkedTaskId, { hasIssue: true }).catch(() => { });
     }
 
     let savedBug = newBug;
@@ -1077,7 +1086,7 @@ export const AppProvider = ({ children }) => {
       const nextIssues = [savedBug, ...prev];
       try {
         localStorage.setItem('standupflow_issues', JSON.stringify(nextIssues));
-      } catch (e) {}
+      } catch (e) { }
       return nextIssues;
     });
     return savedBug;
@@ -1104,7 +1113,7 @@ export const AppProvider = ({ children }) => {
       const nextMsgs = [...prev, newMsg];
       try {
         localStorage.setItem('standupflow_chat_messages', JSON.stringify(nextMsgs));
-      } catch (e) {}
+      } catch (e) { }
       return nextMsgs;
     });
 
@@ -1114,7 +1123,7 @@ export const AppProvider = ({ children }) => {
         headers: getHeaders(),
         body: JSON.stringify(newMsg)
       });
-    } catch (e) {}
+    } catch (e) { }
 
     return newMsg;
   };
@@ -1138,7 +1147,7 @@ export const AppProvider = ({ children }) => {
       });
       try {
         localStorage.setItem('standupflow_chat_messages', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (e) { }
       return updated;
     });
 
@@ -1158,7 +1167,7 @@ export const AppProvider = ({ children }) => {
           } : m);
           try {
             localStorage.setItem('standupflow_chat_messages', JSON.stringify(updated));
-          } catch (e) {}
+          } catch (e) { }
           return updated;
         });
       }
@@ -1180,7 +1189,7 @@ export const AppProvider = ({ children }) => {
       });
       try {
         localStorage.setItem('standupflow_chat_messages', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (e) { }
       return updated;
     });
 
@@ -1189,7 +1198,7 @@ export const AppProvider = ({ children }) => {
         method: 'PUT',
         headers: getHeaders()
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const createChatChannel = async (channelData) => {
@@ -1212,7 +1221,7 @@ export const AppProvider = ({ children }) => {
         headers: getHeaders(),
         body: JSON.stringify(newChannel)
       });
-    } catch (e) {}
+    } catch (e) { }
 
     return newChannel;
   };
@@ -1312,7 +1321,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     try {
       localStorage.setItem('standupflow_invitations', JSON.stringify(invitations));
-    } catch (e) {}
+    } catch (e) { }
   }, [invitations]);
 
   // Fetch invitations from backend API
@@ -1333,7 +1342,7 @@ export const AppProvider = ({ children }) => {
             });
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     fetchUserInvitations();
   }, [currentUser, apiUrl]);
@@ -1367,7 +1376,7 @@ export const AppProvider = ({ children }) => {
         setInvitations(prev => [savedInv, ...prev.filter(i => i.id !== savedInv.id)]);
         return { success: true, invitation: savedInv };
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const localInv = {
       id: `INV-${Date.now()}`,
@@ -1413,7 +1422,7 @@ export const AppProvider = ({ children }) => {
           method: 'PUT',
           headers: getHeaders(),
           body: JSON.stringify(updated)
-        }).catch(() => {});
+        }).catch(() => { });
 
         return updated;
       }
@@ -1512,7 +1521,7 @@ export const AppProvider = ({ children }) => {
         headers: getHeaders(),
         body: JSON.stringify({ email: currentUser.email })
       });
-    } catch (e) {}
+    } catch (e) { }
 
     if (targetInv) {
       const code = targetInv.managerCode;
@@ -1552,7 +1561,7 @@ export const AppProvider = ({ children }) => {
             method: 'PUT',
             headers: getHeaders(),
             body: JSON.stringify(updatedProj)
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
@@ -1597,11 +1606,11 @@ export const AppProvider = ({ children }) => {
       if (u.managerCode && (u.managerCode === targetProj.inviteCode || u.managerCode === targetProj.code)) return true;
 
       // Accepted invitation
-      const hasAccepted = (invitations || []).some(inv => 
-        inv.status === 'ACCEPTED' && 
+      const hasAccepted = (invitations || []).some(inv =>
+        inv.status === 'ACCEPTED' &&
         inv.inviteeEmail?.toLowerCase().trim() === uEmail &&
         (
-          inv.projectId === targetProj.id || 
+          inv.projectId === targetProj.id ||
           String(inv.projectId) === String(targetProj.id) ||
           (targetProj.inviteCode && inv.managerCode === targetProj.inviteCode) ||
           (targetProj.code && inv.managerCode === targetProj.code)
@@ -1617,7 +1626,7 @@ export const AppProvider = ({ children }) => {
     const inv = invitations.find(i => i.id === invitationId);
     try {
       await fetch(`${API_BASE_URL}/invitations/${invitationId}/decline`, { method: 'POST' });
-    } catch (e) {}
+    } catch (e) { }
     setInvitations(prev => prev.map(i => i.id === invitationId ? { ...i, status: 'DECLINED' } : i));
     if (inv) {
       setProjects(prev => prev.map(p => {
@@ -1641,8 +1650,8 @@ export const AppProvider = ({ children }) => {
   };
 
   // Filter tasks strictly available to currentUser
-  const userTasks = isUserAdmin() 
-    ? tasks 
+  const userTasks = isUserAdmin()
+    ? tasks
     : tasks.filter(t => isTaskAssignedToUser(t, currentUser));
 
   // Check if a project is assigned to a user
@@ -1684,23 +1693,23 @@ export const AppProvider = ({ children }) => {
   const userSprints = isUserAdmin()
     ? sprints
     : sprints.filter(s => {
-        if (userTasks.some(t => t.sprintId === s.id || String(t.sprintId) === String(s.id))) return true;
-        if (s.projectId && userProjects.some(p => p.id === s.projectId || String(p.id) === String(s.projectId))) return true;
-        return false;
-      });
+      if (userTasks.some(t => t.sprintId === s.id || String(t.sprintId) === String(s.id))) return true;
+      if (s.projectId && userProjects.some(p => p.id === s.projectId || String(p.id) === String(s.projectId))) return true;
+      return false;
+    });
 
   // Filter issues strictly available to currentUser
   const userIssues = isUserAdmin()
     ? issues
     : issues.filter(i => {
-        if (!currentUser) return false;
-        const uId = currentUser.id ? String(currentUser.id).trim() : '';
-        const uName = (currentUser.name || currentUser.fullname) ? String(currentUser.name || currentUser.fullname).toLowerCase().trim() : '';
-        if (uId && (String(i.assigneeId) === uId || String(i.reporterId) === uId)) return true;
-        if (uName && (i.assigneeName?.toLowerCase() === uName || i.reporterName?.toLowerCase() === uName)) return true;
-        if (userTasks.some(t => t.id === i.linkedTaskId)) return true;
-        return false;
-      });
+      if (!currentUser) return false;
+      const uId = currentUser.id ? String(currentUser.id).trim() : '';
+      const uName = (currentUser.name || currentUser.fullname) ? String(currentUser.name || currentUser.fullname).toLowerCase().trim() : '';
+      if (uId && (String(i.assigneeId) === uId || String(i.reporterId) === uId)) return true;
+      if (uName && (i.assigneeName?.toLowerCase() === uName || i.reporterName?.toLowerCase() === uName)) return true;
+      if (userTasks.some(t => t.id === i.linkedTaskId)) return true;
+      return false;
+    });
 
   // Filter notifications strictly available to currentUser (only notifications targeted to this user)
   const userNotifications = (notifications || []).filter(n => {

@@ -253,11 +253,20 @@ export const SettingsView = () => {
     }, 1000);
   };
 
+  const isRootOrAdmin = Boolean(
+    currentUser?.rootadmin === 1 ||
+    String(currentUser?.rootadmin) === '1' ||
+    currentUser?.role === 'ADMIN' ||
+    currentUser?.roleCode === 1
+  );
+
   const TABS = [
     { id: 'profile', label: 'Profile Picture', icon: User },
     { id: 'password', label: 'Password', icon: Lock },
-    { id: 'mariadb', label: 'MariaDB Database', icon: Database },
-    { id: 'ports', label: 'Port Settings', icon: Server },
+    ...(isRootOrAdmin ? [
+      { id: 'mariadb', label: 'MariaDB Database', icon: Database },
+      { id: 'ports', label: 'Port Settings', icon: Server }
+    ] : []),
     { id: 'readonly', label: 'Account Info', icon: Shield }
   ];
 
