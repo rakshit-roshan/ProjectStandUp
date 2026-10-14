@@ -28,7 +28,7 @@ In `ProjectStandUp`, your application is divided into two independent running ap
 ```
 +-------------------------------------------------------------+
 |                      USER'S BROWSER                         |
-|  React (Vite) App running at: http://localhost:5173         |
+|  React (Vite) App running at: http://localhost:3000         |
 |  - Renders UI buttons, inputs, tables, boards               |
 |  - Manages component state (useState, useContext)           |
 +-------------------------------------------------------------+
@@ -109,7 +109,7 @@ Let's follow the data packet as you type your credentials and click the **"Sign 
      ```
 
 2. **How to Pause & Debug in Browser**:
-   - Open your browser to `http://localhost:5173`.
+   - Open your browser to `http://localhost:3000`.
    - Press **`F12`** (or right-click anywhere on the page and select **Inspect**).
    - Go to the **Sources** tab (or **Debugger** in Firefox).
    - Press `Ctrl + P` and type `LoginPage.jsx`.
