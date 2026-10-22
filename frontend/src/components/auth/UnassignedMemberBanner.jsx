@@ -3,10 +3,20 @@ import { useApp } from '../../context/AppContext';
 import { Lock, Users, ArrowRight, CheckCircle2, ShieldAlert, Sparkles, MailCheck, X } from 'lucide-react';
 
 export const UnassignedMemberBanner = () => {
-  const { currentUser, joinTeamCode, invitations, acceptInvitation, declineInvitation } = useApp();
+  const {
+    currentUser,
+    joinTeamCode,
+    invitations = [],
+    acceptInvitation,
+    declineInvitation,
+    projects = [],
+    canUserManageProjects,
+    refreshData
+  } = useApp();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Pending invitation sent to this user's email
   const pendingInvites = invitations.filter(
@@ -14,7 +24,11 @@ export const UnassignedMemberBanner = () => {
   );
   const currentInvite = pendingInvites[0];
 
-  if (!currentInvite && (currentUser?.role === 'MANAGER' || currentUser?.managerCode)) {
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  const hasProjects = Boolean(projects && projects.length > 0);
+
+  // If user already has assigned projects or can manage projects, and has no pending invitation
+  if (!currentInvite && (canManageProjects || hasProjects)) {
     return null;
   }
 
@@ -33,8 +47,28 @@ export const UnassignedMemberBanner = () => {
     }
   };
 
+  const handleAccept = async (invId) => {
+    setIsProcessing(true);
+    try {
+      await acceptInvitation(invId);
+      if (refreshData) await refreshData();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDecline = async (invId) => {
+    setIsProcessing(true);
+    try {
+      await declineInvitation(invId);
+      if (refreshData) await refreshData();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
-    <div className="space-y-4 mb-6">
+    <div id="unassigned-invitation-container" className="space-y-4 mb-6 pointer-events-auto opacity-100 select-auto relative">
       {/* Pending Invitation Alert Banner if received */}
       {currentInvite && (
         <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 rounded-xl shadow-xl border-2 border-blue-400 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -50,25 +84,33 @@ export const UnassignedMemberBanner = () => {
                 <span className="text-xs text-blue-300 font-mono">From: {currentInvite.managerName}</span>
               </div>
               <h3 className="text-base font-bold text-white mt-1">
-                You're Invited to Join {currentInvite.managerName}'s Team Group!
+                You're Invited to Join {currentInvite.projectName ? `"${currentInvite.projectName}" Workspace` : `${currentInvite.managerName}'s Team Group`}!
               </h3>
               <p className="text-xs text-blue-100 mt-1">
-                Manager Code: <span className="font-mono font-bold text-amber-300">{currentInvite.managerCode}</span>. Click Accept to activate your workspace instantly.
+                {currentInvite.projectName && (
+                  <>Project: <span className="font-semibold text-amber-300">{currentInvite.projectName}</span> &bull; </>
+                )}
+                {currentInvite.projectCode && (
+                  <>Code: <span className="font-mono font-bold text-blue-300">{currentInvite.projectCode}</span> &bull; </>
+                )}
+                Click Accept to activate your workspace instantly.
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
             <button
-              onClick={() => acceptInvitation(currentInvite.id)}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-md transition-colors flex items-center space-x-1.5"
+              onClick={() => handleAccept(currentInvite.id)}
+              disabled={isProcessing}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-md transition-colors flex items-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Accept Invitation</span>
+              <span>{isProcessing ? 'Activating...' : 'Accept Invitation'}</span>
             </button>
             <button
-              onClick={() => declineInvitation(currentInvite.id)}
-              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center space-x-1"
+              onClick={() => handleDecline(currentInvite.id)}
+              disabled={isProcessing}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Decline</span>

@@ -28,8 +28,13 @@ export const TesterDashboard = () => {
     navigateTo,
     setIsTaskDrawerOpen,
     setSelectedTaskId,
-    currentProject
+    currentProject,
+    projects = [],
+    canUserManageProjects
   } = useApp();
+
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
   const [testingFilter, setTestingFilter] = useState('ALL'); // ALL | Pending Testing | In Testing | Passed | Failed
 
@@ -62,6 +67,7 @@ export const TesterDashboard = () => {
       {/* Unassigned Team Member Banner */}
       <UnassignedMemberBanner />
 
+      <div className={isSubUserUnassigned ? "space-y-6 pointer-events-none opacity-40 select-none" : "space-y-6"}>
       {/* Top Header Bar */}
       <div className="bg-gradient-to-r from-fuchsia-900 via-purple-900 to-slate-900 text-white p-5 rounded-lg shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -256,6 +262,7 @@ export const TesterDashboard = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

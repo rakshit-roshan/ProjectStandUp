@@ -10,14 +10,28 @@ import {
   INITIAL_PERFORMANCE_REVIEWS
 } from '../data/mockData';
 
-const getDynamicApiUrl = () => {
+const resolveApiUrl = (configuredUrl) => {
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
+    const protocol = window.location.protocol || 'http:';
     if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `http://${host}:8080/api/v1`;
+      if (!configuredUrl || configuredUrl.includes('localhost') || configuredUrl.includes('127.0.0.1')) {
+        try {
+          const parsed = new URL(configuredUrl || 'http://localhost:8080/api/v1');
+          parsed.hostname = host;
+          parsed.protocol = protocol;
+          return parsed.toString().replace(/\/$/, '');
+        } catch (e) {
+          return `${protocol}//${host}:8080/api/v1`;
+        }
+      }
     }
   }
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+  return configuredUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+};
+
+const getDynamicApiUrl = () => {
+  return resolveApiUrl(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1');
 };
 
 const DEFAULT_API_URL = getDynamicApiUrl();
@@ -59,9 +73,9 @@ const getStoredInvitations = () => {
 const getStoredIssues = () => {
   try {
     const stored = localStorage.getItem('standupflow_issues');
-    return stored ? JSON.parse(stored) : INITIAL_ISSUES;
+    return stored ? JSON.parse(stored) : [];
   } catch (e) {
-    return INITIAL_ISSUES;
+    return [];
   }
 };
 
@@ -92,8 +106,9 @@ export const AppProvider = ({ children }) => {
         if (res.ok) {
           const cfg = await res.json();
           if (cfg.apiBaseUrl) {
-            API_BASE_URL = cfg.apiBaseUrl;
-            setApiUrl(cfg.apiBaseUrl);
+            const resolved = resolveApiUrl(cfg.apiBaseUrl);
+            API_BASE_URL = resolved;
+            setApiUrl(resolved);
           }
         }
       } catch (e) {
@@ -117,6 +132,22 @@ export const AppProvider = ({ children }) => {
   const [chatMessages, setChatMessages] = useState(getStoredChatMessages);
   const [chatChannels, setChatChannels] = useState([]);
   const [rolesPermissions, setRolesPermissions] = useState([]);
+
+  const getStoredRequirements = () => {
+    try {
+      const stored = localStorage.getItem('standupflow_requirements');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return [];
+  };
+
+  const [requirements, setRequirements] = useState(getStoredRequirements);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('standupflow_requirements', JSON.stringify(requirements));
+    } catch (e) {}
+  }, [requirements]);
 
   const fetchRolesPermissions = async () => {
     try {
@@ -151,9 +182,18 @@ export const AppProvider = ({ children }) => {
       (r.roleName && currentUser?.role && String(r.roleName).toLowerCase() === String(currentUser.role).toLowerCase())
     );
 
+    // Editor role has all access like manager or root admin: everything features allowed
+    const roleNameLower = String(roleObj?.roleName || currentUser?.role || '').toLowerCase();
+    if (roleNameLower.includes('editor')) {
+      return true;
+    }
+
     if (!roleObj || !roleObj.permissionsJson) {
       if (menuKey === 'header_create_actions' || menuKey === 'header_actions') {
         return false;
+      }
+      if (menuKey === 'new_requirements') {
+        return true;
       }
       if (userRoleCode > 4) {
         return menuKey === 'dashboard';
@@ -166,7 +206,14 @@ export const AppProvider = ({ children }) => {
 
     try {
       const perms = JSON.parse(roleObj.permissionsJson);
-      return Array.isArray(perms) ? perms.includes(menuKey) : false;
+      if (Array.isArray(perms)) {
+        if (menuKey === 'new_requirements' && !perms.includes('new_requirements')) {
+          // If role doesn't explicitly restrict new_requirements, allow by default
+          return true;
+        }
+        return perms.includes(menuKey);
+      }
+      return false;
     } catch (e) {
       return menuKey === 'dashboard';
     }
@@ -217,6 +264,26 @@ export const AppProvider = ({ children }) => {
     }
 
     return codeNum > 4 ? `Custom Role (${codeNum})` : 'User';
+  };
+
+  const canUserManageProjects = (userToLookup = currentUser) => {
+    if (!userToLookup) return false;
+    if (Boolean(userToLookup.rootadmin === 1 || String(userToLookup.rootadmin) === '1')) {
+      return true;
+    }
+    const rCode = Number(
+      userToLookup.roleCode !== undefined && userToLookup.roleCode !== null
+        ? userToLookup.roleCode
+        : (userToLookup.role === 'ADMIN' ? 1 : userToLookup.role)
+    );
+    if (rCode === 1 || rCode === 2) {
+      return true;
+    }
+    const rName = String(userToLookup.roleName || userToLookup.role || getUserRoleName(userToLookup) || '').toLowerCase();
+    if (rName.includes('admin') || rName.includes('manager') || rName.includes('editor')) {
+      return true;
+    }
+    return false;
   };
 
   // View & UI Navigation State
@@ -323,101 +390,122 @@ export const AppProvider = ({ children }) => {
     return false;
   };
 
-  // Fetch initial and periodic data from Spring Boot REST API
-  useEffect(() => {
-    const fetchApiData = async () => {
-      const activeUrl = apiUrl || API_BASE_URL;
-      const headers = getHeaders();
-      try {
-        const [tasksRes, issuesRes, projectsRes, sprintsRes, usersRes, invRes, notifRes, chatMsgsRes, chatChanRes] = await Promise.all([
-          fetch(`${activeUrl}/tasks`, { headers }),
-          fetch(`${activeUrl}/issues`, { headers }),
-          fetch(`${activeUrl}/projects`, { headers }),
-          fetch(`${activeUrl}/sprints`, { headers }),
-          fetch(`${activeUrl}/users`, { headers }),
-          fetch(`${activeUrl}/invitations`, { headers }),
-          fetch(`${activeUrl}/notifications`, { headers }),
-          fetch(`${activeUrl}/chat/messages`, { headers }),
-          fetch(`${activeUrl}/chat/channels`, { headers })
-        ]);
+  const fetchApiData = async () => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    const headers = getHeaders();
+    try {
+      const [tasksRes, issuesRes, projectsRes, sprintsRes, usersRes, invRes, notifRes, chatMsgsRes, chatChanRes, reqsRes] = await Promise.all([
+        fetch(`${activeUrl}/tasks`, { headers }),
+        fetch(`${activeUrl}/issues`, { headers }),
+        fetch(`${activeUrl}/projects`, { headers }),
+        fetch(`${activeUrl}/sprints`, { headers }),
+        fetch(`${activeUrl}/users`, { headers }),
+        fetch(`${activeUrl}/invitations`, { headers }),
+        fetch(`${activeUrl}/notifications`, { headers }),
+        fetch(`${activeUrl}/chat/messages`, { headers }),
+        fetch(`${activeUrl}/chat/channels`, { headers }),
+        fetch(`${activeUrl}/requirements`, { headers }).catch(() => ({ ok: false }))
+      ]);
 
-        if (checkTenantDeleted(tasksRes) || checkTenantDeleted(usersRes) || checkTenantDeleted(projectsRes)) {
-          return;
-        }
+      if (checkTenantDeleted(tasksRes) || checkTenantDeleted(usersRes) || checkTenantDeleted(projectsRes)) {
+        return;
+      }
 
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json();
-          if (tasksData && Array.isArray(tasksData)) setTasks(tasksData);
+      if (reqsRes && reqsRes.ok) {
+        const reqsData = await reqsRes.json();
+        if (Array.isArray(reqsData)) {
+          const parsed = reqsData.map(r => {
+            let atts = [];
+            if (r.attachmentsJson) {
+              try {
+                atts = JSON.parse(r.attachmentsJson);
+              } catch (e) {}
+            } else if (Array.isArray(r.attachments)) {
+              atts = r.attachments;
+            }
+            return { ...r, attachments: atts };
+          });
+          setRequirements(parsed);
         }
-        if (issuesRes.ok) {
-          const issuesData = await issuesRes.json();
-          if (issuesData && Array.isArray(issuesData)) {
-            setIssues(prev => {
-              if (issuesData.length === 0) return prev;
-              const map = new Map();
-              prev.forEach(i => map.set(i.id, i));
-              issuesData.forEach(i => map.set(i.id, i));
-              return Array.from(map.values());
-            });
-          }
+      }
+
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json();
+        if (Array.isArray(tasksData)) setTasks(tasksData);
+      }
+      if (issuesRes.ok) {
+        const issuesData = await issuesRes.json();
+        if (Array.isArray(issuesData)) {
+          setIssues(issuesData);
         }
-        if (projectsRes.ok) {
-          const projData = await projectsRes.json();
-          if (projData && Array.isArray(projData)) {
-            setProjects(projData);
+      }
+      if (projectsRes.ok) {
+        const projData = await projectsRes.json();
+        if (Array.isArray(projData)) {
+          setProjects(projData);
+          if (projData.length === 0) {
+            setCurrentProject(null);
+            const canManage = canUserManageProjects(currentUser);
+            if (canManage) {
+              setCurrentView(prev => (prev === 'login' || prev === 'register' ? prev : 'project_health'));
+            } else {
+              setCurrentView(prev => (prev === 'login' || prev === 'register' ? prev : 'dashboard'));
+            }
+          } else {
             setCurrentProject(prev => {
               if (!prev) return projData[0] || null;
               const updated = projData.find(p => p.id === prev.id || String(p.id) === String(prev.id));
-              return updated || projData[0] || prev;
+              return updated || projData[0] || null;
             });
           }
         }
-        if (sprintsRes.ok) {
-          const sprData = await sprintsRes.json();
-          if (sprData && Array.isArray(sprData)) setSprints(sprData);
-        }
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          if (usersData && Array.isArray(usersData)) setUsers(usersData);
-        }
-        if (invRes && invRes.ok) {
-          const invData = await invRes.json();
-          if (invData && Array.isArray(invData)) setInvitations(invData);
-        }
-        if (notifRes && notifRes.ok) {
-          const notifData = await notifRes.json();
-          if (Array.isArray(notifData)) {
-            // Backend already returns only this user's notifications (filtered by X-User-Id/X-User-Email).
-            // Store directly — no further leakage from cross-user data.
-            setNotifications(notifData);
-          }
-        }
-        if (chatMsgsRes && chatMsgsRes.ok) {
-          const msgsData = await chatMsgsRes.json();
-          if (msgsData && Array.isArray(msgsData)) {
-            const formattedMsgs = msgsData.map(m => ({
-              ...m,
-              isDeleted: Boolean(m.isDeleted || m.deleted)
-            }));
-            setChatMessages(formattedMsgs);
-            try {
-              localStorage.setItem('standupflow_chat_messages', JSON.stringify(formattedMsgs));
-            } catch (e) { }
-          }
-        }
-        if (chatChanRes && chatChanRes.ok) {
-          const chanData = await chatChanRes.json();
-          if (chanData && Array.isArray(chanData) && chanData.length > 0) setChatChannels(chanData);
-        }
-      } catch (err) {
-        console.warn('SpringBoot backend connecting... using responsive local store fallback.', err);
       }
-    };
+      if (sprintsRes.ok) {
+        const sprData = await sprintsRes.json();
+        if (sprData && Array.isArray(sprData)) setSprints(sprData);
+      }
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        if (usersData && Array.isArray(usersData)) setUsers(usersData);
+      }
+      if (invRes && invRes.ok) {
+        const invData = await invRes.json();
+        if (invData && Array.isArray(invData)) setInvitations(invData);
+      }
+      if (notifRes && notifRes.ok) {
+        const notifData = await notifRes.json();
+        if (Array.isArray(notifData)) {
+          setNotifications(notifData);
+        }
+      }
+      if (chatMsgsRes && chatMsgsRes.ok) {
+        const msgsData = await chatMsgsRes.json();
+        if (msgsData && Array.isArray(msgsData)) {
+          const formattedMsgs = msgsData.map(m => ({
+            ...m,
+            isDeleted: Boolean(m.isDeleted || m.deleted)
+          }));
+          setChatMessages(formattedMsgs);
+          try {
+            localStorage.setItem('standupflow_chat_messages', JSON.stringify(formattedMsgs));
+          } catch (e) { }
+        }
+      }
+      if (chatChanRes && chatChanRes.ok) {
+        const chanData = await chatChanRes.json();
+        if (chanData && Array.isArray(chanData) && chanData.length > 0) setChatChannels(chanData);
+      }
+    } catch (err) {
+      console.warn('SpringBoot backend connecting... using responsive local store fallback.', err);
+    }
+  };
 
+  // Fetch initial and periodic data from Spring Boot REST API
+  useEffect(() => {
     fetchApiData();
     const interval = setInterval(fetchApiData, 3000);
     return () => clearInterval(interval);
-  }, [apiUrl]);
+  }, [apiUrl, currentUser]);
 
   // Login handler against MariaDB backend with 3 inputs: companyIdentifier (companyId or admin email), username, and password
   const login = async (companyIdentifier, username, password) => {
@@ -441,14 +529,54 @@ export const AppProvider = ({ children }) => {
         setIsAuthenticated(true);
         fetchRolesPermissions();
 
-        // Strict role view assignment
-        if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
-        else if (user.role === 'TESTER') setCurrentView('tester_workspace');
-        else setCurrentView('dashboard');
+        // Check actual backend projects for this user/company to determine initial post-login view
+        let currentProjects = [];
+        try {
+          const activeUrl = apiUrl || API_BASE_URL;
+          const loginHeaders = {
+            'Content-Type': 'application/json',
+            'X-Company-Id': String(compId || ''),
+            'X-User-Id': String(user.id || ''),
+            'X-User-Email': String(user.email || user.emailid || ''),
+            'X-User-Name': String(user.name || user.fullname || ''),
+            'X-User-Role': String(user.roleCode !== undefined ? user.roleCode : user.role || ''),
+            'X-User-Rootadmin': String(user.rootadmin !== undefined ? user.rootadmin : '')
+          };
+          const pRes = await fetch(`${activeUrl}/projects`, { headers: loginHeaders });
+          if (pRes.ok) {
+            const pData = await pRes.json();
+            if (Array.isArray(pData)) {
+              currentProjects = pData;
+              setProjects(pData);
+              if (pData.length > 0) {
+                setCurrentProject(pData[0]);
+              }
+            }
+          }
+        } catch (e) {
+          currentProjects = projects || [];
+        }
 
-        // Check if first-time tour is required
-        if (!user.hasCompletedTour) {
-          setIsOnboardingOpen(true);
+        const canManage = canUserManageProjects(user);
+
+        // If no projects exist yet, initial view after login is the project creation page
+        if (!currentProjects || currentProjects.length === 0) {
+          if (canManage) {
+            setCurrentView('project_health');
+          } else {
+            setCurrentView('dashboard');
+          }
+          setIsOnboardingOpen(false);
+        } else {
+          // If project already created, open on Home page (dashboard)
+          if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
+          else if (user.role === 'TESTER') setCurrentView('tester_workspace');
+          else setCurrentView('dashboard');
+
+          // Check if first-time tour is required
+          if (!user.hasCompletedTour) {
+            setIsOnboardingOpen(true);
+          }
         }
         return true;
       } else {
@@ -462,10 +590,20 @@ export const AppProvider = ({ children }) => {
         setCurrentUser(user);
         setCurrentRole(user.role);
         setIsAuthenticated(true);
-        if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
-        else if (user.role === 'TESTER') setCurrentView('tester_workspace');
-        else setCurrentView('dashboard');
-        if (!user.hasCompletedTour) setIsOnboardingOpen(true);
+        if (!projects || projects.length === 0) {
+          const canManage = canUserManageProjects(user);
+          if (canManage) {
+            setCurrentView('project_health');
+          } else {
+            setCurrentView('dashboard');
+          }
+          setIsOnboardingOpen(false);
+        } else {
+          if (user.role === 'DEVELOPER') setCurrentView('developer_workspace');
+          else if (user.role === 'TESTER') setCurrentView('tester_workspace');
+          else setCurrentView('dashboard');
+          if (!user.hasCompletedTour) setIsOnboardingOpen(true);
+        }
         return true;
       }
       setAuthError('Authentication failed. Check credentials.');
@@ -492,14 +630,22 @@ export const AppProvider = ({ children }) => {
         }
         setCurrentUser(user);
         setCurrentRole(user.role);
-        setUsers(prev => [user, ...prev]);
+        setUsers([user]);
+        setTasks([]);
+        setSprints([]);
+        setProjects([]);
+        setIssues([]);
+        setRequirements([]);
+        setNotifications([]);
+        setCurrentProject(null);
+        setCurrentSprint(null);
+        localStorage.removeItem('standupflow_requirements');
+        localStorage.removeItem('standupflow_issues');
         setIsAuthenticated(true);
 
-        // Root / Manager admin gets full dashboard
-        setCurrentView('dashboard');
-
-        // Always show tutorial tour after first registration!
-        setIsOnboardingOpen(true);
+        // Project creation required first before console tour starts
+        setCurrentView('project_health');
+        setIsOnboardingOpen(false);
         return true;
       } else {
         setAuthError(data.message || 'Registration failed');
@@ -526,12 +672,22 @@ export const AppProvider = ({ children }) => {
         hasCompletedTour: false,
         companyId: compId
       };
-      setUsers(prev => [newUser, ...prev]);
+      setUsers([newUser]);
+      setTasks([]);
+      setSprints([]);
+      setProjects([]);
+      setIssues([]);
+      setRequirements([]);
+      setNotifications([]);
+      setCurrentProject(null);
+      setCurrentSprint(null);
+      localStorage.removeItem('standupflow_requirements');
+      localStorage.removeItem('standupflow_issues');
       setCurrentUser(newUser);
       setCurrentRole(newUser.role);
       setIsAuthenticated(true);
-      setCurrentView('dashboard');
-      setIsOnboardingOpen(true);
+      setCurrentView('project_health');
+      setIsOnboardingOpen(false);
       return true;
     }
   };
@@ -567,6 +723,7 @@ export const AppProvider = ({ children }) => {
     setSprints([]);
     setProjects([]);
     setIssues([]);
+    setRequirements([]);
     setInvitations([]);
     setCurrentProject(null);
     setCurrentSprint(null);
@@ -575,6 +732,8 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem('standupflow_auth');
     localStorage.removeItem('standupflow_view');
     localStorage.removeItem('standupflow_company_id');
+    localStorage.removeItem('standupflow_requirements');
+    localStorage.removeItem('standupflow_issues');
   };
 
   // Update Profile Info (Name, Email, Password, Department, Avatar)
@@ -665,6 +824,10 @@ export const AppProvider = ({ children }) => {
 
   // Navigation Helper
   const navigateTo = (viewName, extraId = null) => {
+    if (viewName !== 'login' && viewName !== 'register' && viewName !== 'project_health' && (!projects || projects.length === 0)) {
+      setCurrentView('project_health');
+      return;
+    }
     setCurrentView(viewName);
     if (viewName === 'task_details' && extraId) {
       setSelectedTaskId(extraId);
@@ -679,6 +842,7 @@ export const AppProvider = ({ children }) => {
 
   // Create Project REST Persist
   const createProject = async (projData) => {
+    const isFirstProject = (!projects || projects.length === 0);
     const projId = `PRJ-${Date.now()}`;
     const newProj = {
       id: projId,
@@ -727,6 +891,15 @@ export const AppProvider = ({ children }) => {
       return [savedProj, ...filtered];
     });
     setCurrentProject(savedProj);
+
+    // If first project, navigate to Home and launch Console Tour from dashboard
+    if (isFirstProject) {
+      setCurrentView('dashboard');
+      setTimeout(() => {
+        setIsOnboardingOpen(true);
+      }, 450);
+    }
+
     return savedProj;
   };
 
@@ -1347,6 +1520,161 @@ export const AppProvider = ({ children }) => {
     fetchUserInvitations();
   }, [currentUser, apiUrl]);
 
+  // Requirements Management Methods
+  const fetchRequirements = async () => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    try {
+      const res = await fetch(`${activeUrl}/requirements`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const parsed = data.map(r => {
+            let atts = [];
+            if (r.attachmentsJson) {
+              try { atts = JSON.parse(r.attachmentsJson); } catch (e) {}
+            } else if (Array.isArray(r.attachments)) {
+              atts = r.attachments;
+            }
+            return { ...r, attachments: atts };
+          });
+          setRequirements(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch requirements:', err);
+    }
+  };
+
+  const createRequirement = async (reqData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    const reqId = `REQ-${Date.now().toString().slice(-4)}`;
+    const attachments = Array.isArray(reqData.attachments) ? reqData.attachments : [];
+    const attachmentsJson = JSON.stringify(attachments);
+    const newReq = {
+      id: reqId,
+      title: reqData.title,
+      description: reqData.description || '',
+      priority: reqData.priority || 'Medium',
+      category: reqData.category || 'Feature',
+      projectId: reqData.projectId || currentProject?.id || '',
+      projectName: reqData.projectName || currentProject?.name || '',
+      sprintId: reqData.sprintId || '',
+      sprintName: reqData.sprintName || '',
+      assigneeId: reqData.assigneeId || '',
+      assigneeName: reqData.assigneeName || '',
+      assigneeAvatar: reqData.assigneeAvatar || '',
+      status: reqData.status || 'Submitted',
+      convertedTaskId: '',
+      createdByUserId: reqData.createdByUserId || currentUser?.id || '1',
+      createdByName: reqData.createdByName || currentUser?.name || 'User',
+      createdByAvatar: reqData.createdByAvatar || currentUser?.avatar || '',
+      createdByRole: reqData.createdByRole || currentUser?.role || 'Member',
+      attachments: attachments,
+      attachmentsJson: attachmentsJson,
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+    };
+
+    setRequirements(prev => [newReq, ...prev]);
+
+    try {
+      const res = await fetch(`${activeUrl}/requirements`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(newReq)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        let atts = attachments;
+        if (saved.attachmentsJson) {
+          try { atts = JSON.parse(saved.attachmentsJson); } catch (e) {}
+        }
+        const finalized = { ...saved, attachments: atts };
+        setRequirements(prev => prev.map(r => r.id === reqId ? finalized : r));
+        return finalized;
+      }
+    } catch (err) {
+      console.warn('Backend createRequirement fallback:', err);
+    }
+    return newReq;
+  };
+
+  const updateRequirement = async (id, updatedData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    const payload = { ...updatedData };
+    if (updatedData.attachments !== undefined) {
+      payload.attachmentsJson = JSON.stringify(updatedData.attachments);
+    }
+
+    setRequirements(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const merged = { ...r, ...payload, updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) };
+      if (updatedData.attachments !== undefined) {
+        merged.attachments = updatedData.attachments;
+      }
+      return merged;
+    }));
+
+    try {
+      await fetch(`${activeUrl}/requirements/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn('Backend updateRequirement fallback:', err);
+    }
+  };
+
+  const deleteRequirement = async (id) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    setRequirements(prev => prev.filter(r => r.id !== id));
+
+    try {
+      await fetch(`${activeUrl}/requirements/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+    } catch (err) {
+      console.warn('Backend deleteRequirement fallback:', err);
+    }
+  };
+
+  const convertRequirementToTask = async (reqId, taskPayload) => {
+    const createdTask = await createTask(taskPayload);
+    await updateRequirement(reqId, {
+      status: 'Converted to Task',
+      convertedTaskId: createdTask.id,
+      projectId: taskPayload.projectId,
+      projectName: taskPayload.projectName,
+      sprintId: taskPayload.sprintId,
+      sprintName: taskPayload.sprintName,
+      assigneeId: taskPayload.assigneeId,
+      assigneeName: taskPayload.assigneeName,
+      assigneeAvatar: taskPayload.assigneeAvatar
+    });
+    return createdTask;
+  };
+
+  const isManagerOrEditorOrRoot = (user = currentUser) => {
+    if (!user) return false;
+    if (Boolean(user.rootadmin === 1 || String(user.rootadmin) === '1')) return true;
+    const code = Number(user.roleCode !== undefined && user.roleCode !== null ? user.roleCode : user.role);
+    if (code === 1 || code === 2) return true;
+    const roleName = String(getUserRoleName(user)).toLowerCase();
+    const roleRaw = String(user.role || '').toLowerCase();
+    return roleName.includes('admin') || roleName.includes('manager') || roleName.includes('editor') ||
+           roleRaw.includes('admin') || roleRaw.includes('manager') || roleRaw.includes('editor');
+  };
+
+  const isViewer = (user = currentUser) => {
+    if (!user) return false;
+    if (Boolean(user.rootadmin === 1 || String(user.rootadmin) === '1')) return false;
+    const roleName = String(getUserRoleName(user)).toLowerCase();
+    const roleRaw = String(user.role || '').toLowerCase();
+    return roleName.includes('viewer') || roleRaw.includes('viewer') || roleName.includes('read only') || roleRaw.includes('read only');
+  };
+
   // Send Team Invitation (Project scoped)
   const sendInvitation = async (inviteeEmail, targetProjectId = null) => {
     if (!currentUser) {
@@ -1395,20 +1723,23 @@ export const AppProvider = ({ children }) => {
   // Remove Member from Project Workspace
   const removeMemberFromProject = async (projectId, userId) => {
     const activeUrl = apiUrl || API_BASE_URL;
+    const sUserId = String(userId).trim();
+    const targetUser = users.find(u => String(u.id).trim() === sUserId);
+    const uEmail = targetUser?.email ? targetUser.email.toLowerCase().trim() : '';
 
+    // 1. Optimistically update local project state
     setProjects(prev => prev.map(p => {
       if (p.id === projectId || String(p.id) === String(projectId)) {
         let updatedMemberIds = typeof p.memberIds === 'string'
           ? p.memberIds.split(',').map(s => s.trim()).filter(Boolean)
           : (p.memberIds || []);
-        updatedMemberIds = updatedMemberIds.filter(id => id !== userId);
+        updatedMemberIds = updatedMemberIds.filter(id => String(id).trim() !== sUserId);
 
-        const targetUser = users.find(u => u.id === userId);
         let updatedMemberEmails = typeof p.memberEmails === 'string'
           ? p.memberEmails.split(',').map(s => s.trim()).filter(Boolean)
           : (p.memberEmails || []);
-        if (targetUser) {
-          updatedMemberEmails = updatedMemberEmails.filter(e => e.toLowerCase() !== targetUser.email?.toLowerCase());
+        if (uEmail) {
+          updatedMemberEmails = updatedMemberEmails.filter(e => e.toLowerCase().trim() !== uEmail);
         }
 
         const updated = {
@@ -1416,46 +1747,88 @@ export const AppProvider = ({ children }) => {
           memberIds: Array.isArray(p.memberIds) ? updatedMemberIds : updatedMemberIds.join(','),
           memberEmails: Array.isArray(p.memberEmails) ? updatedMemberEmails : updatedMemberEmails.join(',')
         };
-        if (currentProject?.id === p.id) setCurrentProject(updated);
-
-        fetch(`${activeUrl}/projects/${p.id}`, {
-          method: 'PUT',
-          headers: getHeaders(),
-          body: JSON.stringify(updated)
-        }).catch(() => { });
-
+        if (currentProject?.id === p.id || String(currentProject?.id) === String(p.id)) {
+          setCurrentProject(updated);
+        }
         return updated;
       }
       return p;
     }));
+
+    // 2. Clear invitation records in local state for this user and project
+    if (uEmail) {
+      setInvitations(prev => (prev || []).map(inv => {
+        const matchesEmail = inv.inviteeEmail?.toLowerCase().trim() === uEmail;
+        const matchesProj = inv.projectId === projectId || String(inv.projectId) === String(projectId);
+        if (matchesEmail && matchesProj) {
+          return { ...inv, status: 'REMOVED' };
+        }
+        return inv;
+      }));
+    }
+
+    // 3. Clear user's managerCode in local state if it matched this project
+    const targetProj = projects.find(p => p.id === projectId || String(p.id) === String(projectId));
+    if (targetProj) {
+      setUsers(prev => (prev || []).map(u => {
+        if (String(u.id).trim() === sUserId) {
+          if (u.managerCode === targetProj.code || u.managerCode === targetProj.inviteCode) {
+            return { ...u, managerCode: null };
+          }
+        }
+        return u;
+      }));
+    }
+
+    // 4. Send backend DELETE call to remove member
+    try {
+      const res = await fetch(`${activeUrl}/projects/${projectId}/members/${sUserId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      if (!res.ok) {
+        const curProj = projects.find(p => p.id === projectId || String(p.id) === String(projectId));
+        if (curProj) {
+          let updatedMemberIds = typeof curProj.memberIds === 'string'
+            ? curProj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
+            : (curProj.memberIds || []);
+          updatedMemberIds = updatedMemberIds.filter(id => String(id).trim() !== sUserId);
+          let updatedMemberEmails = typeof curProj.memberEmails === 'string'
+            ? curProj.memberEmails.split(',').map(s => s.trim()).filter(Boolean)
+            : (curProj.memberEmails || []);
+          if (uEmail) updatedMemberEmails = updatedMemberEmails.filter(e => e.toLowerCase().trim() !== uEmail);
+          const putPayload = {
+            ...curProj,
+            memberIds: Array.isArray(curProj.memberIds) ? updatedMemberIds : updatedMemberIds.join(','),
+            memberEmails: Array.isArray(curProj.memberEmails) ? updatedMemberEmails : updatedMemberEmails.join(',')
+          };
+          await fetch(`${activeUrl}/projects/${projectId}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(putPayload)
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Error removing member from project:', e);
+    }
+
+    // 5. Re-sync all state cleanly
+    await fetchApiData();
   };
 
-  // Directly assign an existing registered user to a project workspace
+  // Directly assign an existing registered user to a project workspace via pending invitation
   const addMemberToProject = async (projId, userId) => {
     const targetProj = projects.find(p => p.id === projId || String(p.id) === String(projId));
     const targetUser = users.find(u => u.id === userId || String(u.id) === String(userId));
-    if (!targetProj || !targetUser) return { success: false };
+    if (!targetProj || !targetUser) return { success: false, message: 'User or Project not found' };
 
-    let mIds = typeof targetProj.memberIds === 'string'
-      ? targetProj.memberIds.split(',').map(s => s.trim()).filter(Boolean)
-      : (targetProj.memberIds || []);
-    if (!mIds.includes(String(targetUser.id))) {
-      mIds.push(String(targetUser.id));
-    }
+    const email = (targetUser.email || targetUser.emailid || '').trim().toLowerCase();
+    if (!email) return { success: false, message: 'User has no registered email' };
 
-    let mEmails = typeof targetProj.memberEmails === 'string'
-      ? targetProj.memberEmails.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-      : (targetProj.memberEmails || []);
-    if (targetUser.email && !mEmails.includes(targetUser.email.toLowerCase())) {
-      mEmails.push(targetUser.email.toLowerCase());
-    }
-
-    const updated = await updateProject(targetProj.id, {
-      memberIds: mIds.join(','),
-      memberEmails: mEmails.join(',')
-    });
-
-    return { success: true, project: updated };
+    const invRes = await sendInvitation(email, targetProj.id);
+    await fetchApiData();
+    return { success: true, pending: true, invitation: invRes?.invitation };
   };
 
   // Assign or unassign a user across multiple projects
@@ -1519,7 +1892,7 @@ export const AppProvider = ({ children }) => {
       await fetch(`${activeUrl}/invitations/${invitationId}/accept`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ email: currentUser.email })
+        body: JSON.stringify({ email: currentUser.email || currentUser.emailid })
       });
     } catch (e) { }
 
@@ -1566,8 +1939,10 @@ export const AppProvider = ({ children }) => {
       }
 
       setInvitations(prev => prev.map(i => i.id === invitationId ? { ...i, status: 'ACCEPTED' } : i));
+      await fetchApiData();
       return { success: true, managerCode: code };
     }
+    await fetchApiData();
     return { success: false };
   };
 
@@ -1826,6 +2201,8 @@ export const AppProvider = ({ children }) => {
         fetchRolesPermissions,
         hasPermission,
         getUserRoleName,
+        canUserManageProjects,
+        refreshData: fetchApiData,
         API_BASE_URL,
         // Setters
         setCurrentProject,
@@ -1877,6 +2254,16 @@ export const AppProvider = ({ children }) => {
         setIsEditProjectModalOpen,
         editingProject,
         setEditingProject,
+        // Requirements & Role Capabilities
+        requirements,
+        setRequirements,
+        fetchRequirements,
+        createRequirement,
+        updateRequirement,
+        deleteRequirement,
+        convertRequirementToTask,
+        isManagerOrEditorOrRoot,
+        isViewer,
         // Team Chat & Docs
         chatMessages,
         chatChannels,

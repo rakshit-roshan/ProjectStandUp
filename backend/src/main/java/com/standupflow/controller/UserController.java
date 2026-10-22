@@ -9,10 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -26,6 +23,12 @@ public class UserController {
 
     @Autowired
     private com.standupflow.repository.RolePermissionRepository rolePermissionRepository;
+
+    @Autowired
+    private com.standupflow.repository.ProjectRepository projectRepository;
+
+    @Autowired
+    private com.standupflow.repository.InvitationRepository invitationRepository;
 
     private void enrichUserRoleNames(List<User> users) {
         if (users == null || users.isEmpty()) return;
@@ -253,6 +256,40 @@ public class UserController {
             if ((user.getRootadmin() != null && user.getRootadmin() == 1) || "root".equalsIgnoreCase(user.getUsername())) {
                 return ResponseEntity.badRequest().body("Primary Root Administrator account cannot be deleted.");
             }
+            // Clean up project memberships
+            String userEmail = user.getEmail() != null ? user.getEmail().trim().toLowerCase() : "";
+            try {
+                List<com.standupflow.model.Project> allProjects = projectRepository.findAll();
+                for (com.standupflow.model.Project p : allProjects) {
+                    boolean changed = false;
+                    if (p.getMemberIds() != null && !p.getMemberIds().isBlank()) {
+                        List<String> ids = new ArrayList<>(Arrays.asList(p.getMemberIds().split(",")));
+                        if (ids.removeIf(mid -> mid.trim().equals(id.trim()))) {
+                            p.setMemberIds(String.join(",", ids));
+                            changed = true;
+                        }
+                    }
+                    if (!userEmail.isEmpty() && p.getMemberEmails() != null && !p.getMemberEmails().isBlank()) {
+                        List<String> emails = new ArrayList<>(Arrays.asList(p.getMemberEmails().split(",")));
+                        if (emails.removeIf(e -> e.trim().equalsIgnoreCase(userEmail))) {
+                            p.setMemberEmails(String.join(",", emails));
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        projectRepository.save(p);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // Clean up invitations
+            if (!userEmail.isEmpty()) {
+                try {
+                    List<com.standupflow.model.Invitation> userInvs = invitationRepository.findByInviteeEmail(userEmail);
+                    invitationRepository.deleteAll(userInvs);
+                } catch (Exception ignored) {}
+            }
+
             try {
                 userMetricsRepository.findByUserId(id).ifPresent(m -> userMetricsRepository.delete(m));
                 try {

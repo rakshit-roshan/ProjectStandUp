@@ -23,7 +23,12 @@ import {
   ChevronRight,
   MessageSquare,
   UserCheck,
-  Shield
+  Shield,
+  FileText,
+  Sparkles,
+  Lock,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -39,10 +44,17 @@ export const Sidebar = () => {
     hasPermission,
     getUserRoleName,
     setIsOnboardingOpen,
-    isUserAdmin
+    isUserAdmin,
+    canUserManageProjects,
+    projects = [],
+    setIsCreateProjectModalOpen
   } = useApp();
 
   const [activeAccordion, setActiveAccordion] = useState(null); // 'tasks' | 'management' | 'testing' | 'admin' | null
+  const [disabledPrompt, setDisabledPrompt] = useState(null);
+
+  const hasProjects = Boolean(projects && projects.length > 0);
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
 
   const toggleAccordion = (key) => {
     setActiveAccordion(prev => (prev === key ? null : key));
@@ -65,14 +77,51 @@ export const Sidebar = () => {
   const unreadCount = userNotifications.filter(n => !n.read).length;
   const openIssuesCount = issues.filter(i => i.state !== 'Done').length;
 
-  const normRole = (currentRole === 'MANAGER' || currentRole === 'DEVELOPER') ? 'ENGINEER' : currentRole;
-  const isAdmin = isUserAdmin ? isUserAdmin() : Boolean(currentUser?.rootadmin === 1);
-  const isEngineer = normRole === 'ENGINEER' || isAdmin;
-  const isTester = currentRole === 'TESTER' || isAdmin;
-  const isAssigned = true; // Every user has full active workspace access
-  const disabledClass = '';
-
   const isActive = (viewName) => currentView === viewName;
+
+  const handleDisabledClick = (moduleName) => {
+    if (canManageProjects) {
+      setDisabledPrompt(
+        `Project Setup Required: Please create a project first before accessing ${moduleName}.`
+      );
+    } else {
+      setDisabledPrompt(
+        `Project Assignment Pending: Your administrator has not assigned you to any project workspace yet. Once an administrator or manager adds you to a team project, ${moduleName} will be unlocked.`
+      );
+    }
+  };
+
+  const handleNavClick = (targetView, moduleName, roleSpecific = false) => {
+    if (!hasProjects) {
+      handleDisabledClick(moduleName);
+      return;
+    }
+    setActiveAccordion(null);
+    if (roleSpecific) {
+      if (currentRole === 'DEVELOPER') navigateTo('developer_workspace');
+      else if (currentRole === 'TESTER') navigateTo('tester_workspace');
+      else navigateTo('dashboard');
+    } else {
+      navigateTo(targetView);
+    }
+  };
+
+  const handleAccordionClick = (key, moduleName) => {
+    if (!hasProjects) {
+      handleDisabledClick(moduleName);
+      return;
+    }
+    if (!sidebarCollapsed) {
+      toggleAccordion(key);
+    } else {
+      if (key === 'tasks') navigateTo('tasks_kanban');
+      else if (key === 'management') navigateTo('sprints');
+      else if (key === 'testing') navigateTo('tester_workspace');
+      else if (key === 'admin') navigateTo('user_accounts');
+    }
+  };
+
+  const disabledBtnClass = !hasProjects ? 'opacity-40 hover:bg-transparent cursor-not-allowed' : 'cursor-pointer';
 
   return (
     <aside
@@ -88,6 +137,41 @@ export const Sidebar = () => {
     >
       {/* Upper Navigation Content */}
       <div className="flex-1 overflow-y-auto min-h-0 py-3 px-2 space-y-4 custom-scrollbar">
+        {/* Enterprise Setup Card if 0 projects */}
+        {!hasProjects && !sidebarCollapsed && (
+          canManageProjects ? (
+            <div className="mx-1 mb-2 p-3 rounded-xl bg-gradient-to-br from-amber-500/20 via-slate-900/60 to-blue-500/15 border border-amber-400/40 shadow-lg text-xs space-y-2 animate-in fade-in">
+              <div className="flex items-center space-x-1.5 text-amber-300 font-bold text-[11px] tracking-wide uppercase">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                <span>Workspace Setup</span>
+              </div>
+              <p className="text-[11px] text-slate-200 leading-snug">
+                Create your initial project to configure sprint cycles and unlock the entire workspace.
+              </p>
+              <button
+                onClick={() => {
+                  navigateTo('project_health');
+                  setIsCreateProjectModalOpen(true);
+                }}
+                className="w-full py-1.5 px-2.5 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-bold text-[11px] rounded-lg shadow transition-all flex items-center justify-center space-x-1 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>+ Create First Project</span>
+              </button>
+            </div>
+          ) : (
+            <div className="mx-1 mb-2 p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 shadow-lg text-xs space-y-2 animate-in fade-in">
+              <div className="flex items-center space-x-1.5 text-blue-400 font-bold text-[11px] tracking-wide uppercase">
+                <Lock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Assignment Pending</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Your administrator has not assigned you to any project workspace yet.
+              </p>
+            </div>
+          )
+        )}
+
         {/* WORKSPACE SECTION */}
         <div>
           {!sidebarCollapsed && (
@@ -100,63 +184,93 @@ export const Sidebar = () => {
             {hasPermission('dashboard') && (
               <button
                 id="nav-home"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  if (currentRole === 'DEVELOPER') navigateTo('developer_workspace');
-                  else if (currentRole === 'TESTER') navigateTo('tester_workspace');
-                  else navigateTo('dashboard');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('dashboard') || (currentRole === 'DEVELOPER' && isActive('developer_workspace'))
+                onClick={() => handleNavClick('dashboard', 'Home', true)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && (isActive('dashboard') || (currentRole === 'DEVELOPER' && isActive('developer_workspace')))
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Home"
+                title={!hasProjects ? "Action Required: Create a project first to access Home" : "Home"}
               >
-                <Home className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span>Home</span>}
+                <div className="flex items-center space-x-3">
+                  <Home className="w-4 h-4 shrink-0" />
+                  {!sidebarCollapsed && <span>Home</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
               </button>
             )}
 
             {/* Projects */}
             {hasPermission('projects') && (
-              <button
-                id="nav-projects"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('project_health');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('project_health')
-                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-                title="Projects"
-              >
-                <Layers className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span>Projects</span>}
-              </button>
+              canManageProjects ? (
+                <button
+                  id="nav-projects"
+                  onClick={() => {
+                    setActiveAccordion(null);
+                    navigateTo('project_health');
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    isActive('project_health')
+                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                      : !hasProjects
+                      ? 'bg-amber-500/25 text-amber-200 border border-amber-400/60 hover:bg-amber-500/35 shadow-sm'
+                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                  title="Projects"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Layers className={`w-4 h-4 shrink-0 ${!hasProjects ? 'text-amber-400 animate-pulse' : ''}`} />
+                    {!sidebarCollapsed && <span className={!hasProjects ? 'font-bold text-amber-200' : ''}>Projects</span>}
+                  </div>
+                  {!sidebarCollapsed && !hasProjects && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-400 text-slate-950 tracking-wider animate-pulse">
+                      Required
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <button
+                  id="nav-projects"
+                  onClick={() => handleNavClick('project_health', 'Projects')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                    hasProjects && isActive('project_health')
+                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                  title={!hasProjects ? "Assignment Pending: Your administrator has not assigned you to any project yet" : "Projects"}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Layers className="w-4 h-4 shrink-0 text-slate-400" />
+                    {!sidebarCollapsed && <span>Projects</span>}
+                  </div>
+                  {!sidebarCollapsed && !hasProjects && (
+                    <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                  )}
+                </button>
+              )
             )}
 
             {/* Team Members */}
             {hasPermission('team_members') && (
               <button
                 id="nav-team-members"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('team_members');
-                }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                  isActive('team_members')
+                onClick={() => handleNavClick('team_members', 'Team Members')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('team_members')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Team Members"
+                title={!hasProjects ? "Action Required: Create a project first to access Team Members" : "Team Members"}
               >
-                <Users className="w-4 h-4 shrink-0 text-indigo-400" />
-                {!sidebarCollapsed && <span>Team Members</span>}
+                <div className="flex items-center space-x-3">
+                  <Users className="w-4 h-4 shrink-0 text-indigo-400" />
+                  {!sidebarCollapsed && <span>Team Members</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
               </button>
             )}
 
@@ -164,20 +278,21 @@ export const Sidebar = () => {
             {hasPermission('chat') && (
               <button
                 id="nav-chat"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('chat');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('chat')
+                onClick={() => handleNavClick('chat', 'Chats')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('chat')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Chats"
+                title={!hasProjects ? "Action Required: Create a project first to access Chats" : "Chats"}
               >
-                <MessageSquare className="w-4 h-4 shrink-0 text-cyan-400" />
-                {!sidebarCollapsed && <span>Chats</span>}
+                <div className="flex items-center space-x-3">
+                  <MessageSquare className="w-4 h-4 shrink-0 text-cyan-400" />
+                  {!sidebarCollapsed && <span>Chats</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
               </button>
             )}
 
@@ -185,26 +300,46 @@ export const Sidebar = () => {
             {hasPermission('issues') && (
               <button
                 id="nav-issues"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('issues');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('issues')
+                onClick={() => handleNavClick('issues', 'Issues Registry')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('issues')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Issues Registry"
+                title={!hasProjects ? "Action Required: Create a project first to access Issues Registry" : "Issues Registry"}
               >
                 <div className="flex items-center space-x-3">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
                   {!sidebarCollapsed && <span>Issues Registry</span>}
                 </div>
-                {!sidebarCollapsed && openIssuesCount > 0 && (
+                {!sidebarCollapsed && (!hasProjects ? (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                ) : openIssuesCount > 0 ? (
                   <span className="px-1.5 py-0.2 bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-bold rounded-full font-mono">
                     {openIssuesCount}
                   </span>
+                ) : null)}
+              </button>
+            )}
+
+            {/* New Requirement */}
+            {hasPermission('new_requirements') && (
+              <button
+                id="nav-new-requirements"
+                onClick={() => handleNavClick('new_requirements', 'New Requirement')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('new_requirements')
+                    ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!hasProjects ? "Action Required: Create a project first to submit requirements" : "New Requirement"}
+              >
+                <div className="flex items-center space-x-3">
+                  <FileText className="w-4 h-4 shrink-0 text-emerald-400" />
+                  {!sidebarCollapsed && <span>New Requirement</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
                 )}
               </button>
             )}
@@ -213,20 +348,21 @@ export const Sidebar = () => {
             {hasPermission('monitor') && (
               <button
                 id="nav-monitor"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('monitor');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('monitor')
+                onClick={() => handleNavClick('monitor', 'Team Monitor')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('monitor')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Team Monitor"
+                title={!hasProjects ? "Action Required: Create a project first to view Team Monitor" : "Team Monitor"}
               >
-                <Activity className="w-4 h-4 shrink-0 text-cyan-400" />
-                {!sidebarCollapsed && <span>Team Monitor</span>}
+                <div className="flex items-center space-x-3">
+                  <Activity className="w-4 h-4 shrink-0 text-cyan-400" />
+                  {!sidebarCollapsed && <span>Team Monitor</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
               </button>
             )}
 
@@ -234,20 +370,21 @@ export const Sidebar = () => {
             {hasPermission('employee_health') && (
               <button
                 id="nav-employee-health"
-                onClick={() => {
-                  setActiveAccordion(null);
-                  navigateTo('employee_health');
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('employee_health')
+                onClick={() => handleNavClick('employee_health', 'Work Health')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('employee_health')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Work Health"
+                title={!hasProjects ? "Action Required: Create a project first to view Work Health" : "Work Health"}
               >
-                <HeartPulse className="w-4 h-4 shrink-0 text-emerald-400" />
-                {!sidebarCollapsed && <span>Work Health</span>}
+                <div className="flex items-center space-x-3">
+                  <HeartPulse className="w-4 h-4 shrink-0 text-emerald-400" />
+                  {!sidebarCollapsed && <span>Work Health</span>}
+                </div>
+                {!sidebarCollapsed && !hasProjects && (
+                  <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                )}
               </button>
             )}
 
@@ -256,38 +393,36 @@ export const Sidebar = () => {
               <div>
                 <button
                   id="nav-tasks-queue"
-                  onClick={() => {
-                    if (!sidebarCollapsed) {
-                      toggleAccordion('tasks');
-                    } else {
-                      navigateTo('tasks_kanban');
-                    }
-                  }}
-                  disabled={!isAssigned}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                    isActive('tasks_kanban') || isActive('tasks_table')
+                  onClick={() => handleAccordionClick('tasks', 'Tasks Queue')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                    hasProjects && (isActive('tasks_kanban') || isActive('tasks_table'))
                       ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
                   }`}
-                  title="Tasks Queue"
+                  title={!hasProjects ? "Action Required: Create a project first to view Tasks Queue" : "Tasks Queue"}
                 >
                   <div className="flex items-center space-x-3">
                     <Kanban className="w-4 h-4 shrink-0 text-blue-400" />
                     {!sidebarCollapsed && <span>Tasks Queue</span>}
                   </div>
                   {!sidebarCollapsed && (
-                    isTasksSubmenuOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    !hasProjects ? (
+                      <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                    ) : isTasksSubmenuOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    )
                   )}
                 </button>
 
                 {/* Submenu */}
-                {!sidebarCollapsed && isTasksSubmenuOpen && (
-                  <div className={`pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4 ${disabledClass}`}>
+                {!sidebarCollapsed && isTasksSubmenuOpen && hasProjects && (
+                  <div className="pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4">
                     {hasPermission('tasks_kanban') && (
                       <button
                         onClick={() => navigateTo('tasks_kanban')}
-                        disabled={!isAssigned}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                           isActive('tasks_kanban') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -297,8 +432,7 @@ export const Sidebar = () => {
                     {hasPermission('tasks_table') && (
                       <button
                         onClick={() => navigateTo('tasks_table')}
-                        disabled={!isAssigned}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                           isActive('tasks_table') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -318,38 +452,36 @@ export const Sidebar = () => {
             <nav className="space-y-1">
               <button
                 id="nav-management-console"
-                onClick={() => {
-                  if (!sidebarCollapsed) {
-                    toggleAccordion('management');
-                  } else {
-                    navigateTo('sprints');
-                  }
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('sprints') || isActive('sprint_details') || isActive('reports') || isActive('performance_review')
+                onClick={() => handleAccordionClick('management', 'Management Console')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && (isActive('sprints') || isActive('sprint_details') || isActive('reports') || isActive('performance_review'))
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Management Console"
+                title={!hasProjects ? "Action Required: Create a project first to access Management Console" : "Management Console"}
               >
                 <div className="flex items-center space-x-3">
                   <BarChart3 className="w-4 h-4 shrink-0 text-indigo-400" />
                   {!sidebarCollapsed && <span>Management Console</span>}
                 </div>
                 {!sidebarCollapsed && (
-                  isManagementSubmenuOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  !hasProjects ? (
+                    <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                  ) : isManagementSubmenuOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  )
                 )}
               </button>
 
               {/* Submenu */}
-              {!sidebarCollapsed && isManagementSubmenuOpen && (
-                <div className={`pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4 ${disabledClass}`}>
+              {!sidebarCollapsed && isManagementSubmenuOpen && hasProjects && (
+                <div className="pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4">
                   {hasPermission('sprints') && (
                     <button
                       onClick={() => navigateTo('sprints')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('sprints') || isActive('sprint_details') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -359,8 +491,7 @@ export const Sidebar = () => {
                   {hasPermission('reports') && (
                     <button
                       onClick={() => navigateTo('reports')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('reports') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -370,8 +501,7 @@ export const Sidebar = () => {
                   {hasPermission('performance_review') && (
                     <button
                       onClick={() => navigateTo('performance_review')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('performance_review') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -390,38 +520,36 @@ export const Sidebar = () => {
             <nav className="space-y-1">
               <button
                 id="nav-testing"
-                onClick={() => {
-                  if (!sidebarCollapsed) {
-                    toggleAccordion('testing');
-                  } else {
-                    navigateTo('tester_workspace');
-                  }
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('tester_workspace')
+                onClick={() => handleAccordionClick('testing', 'Testing Module')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && isActive('tester_workspace')
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Testing Module"
+                title={!hasProjects ? "Action Required: Create a project first to access Testing Module" : "Testing Module"}
               >
                 <div className="flex items-center space-x-3">
                   <CheckSquare className="w-4 h-4 shrink-0 text-fuchsia-400" />
                   {!sidebarCollapsed && <span>Testing Module</span>}
                 </div>
                 {!sidebarCollapsed && (
-                  isTestingSubmenuOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  !hasProjects ? (
+                    <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                  ) : isTestingSubmenuOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  )
                 )}
               </button>
 
               {/* Submenu */}
-              {!sidebarCollapsed && isTestingSubmenuOpen && (
-                <div className={`pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4 ${disabledClass}`}>
+              {!sidebarCollapsed && isTestingSubmenuOpen && hasProjects && (
+                <div className="pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4">
                   {hasPermission('tester_workspace') && (
                     <button
                       onClick={() => navigateTo('tester_workspace')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('tester_workspace') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -440,38 +568,36 @@ export const Sidebar = () => {
             <nav className="space-y-1">
               <button
                 id="nav-admin"
-                onClick={() => {
-                  if (!sidebarCollapsed) {
-                    toggleAccordion('admin');
-                  } else {
-                    navigateTo('user_accounts');
-                  }
-                }}
-                disabled={!isAssigned}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                  isActive('user_accounts') || isActive('user_roles')
+                onClick={() => handleAccordionClick('admin', 'Administrator Controls')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                  hasProjects && (isActive('user_accounts') || isActive('user_roles'))
                     ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
-                title="Administrator Controls"
+                title={!hasProjects ? "Action Required: Create a project first to access Administration" : "Administrator Controls"}
               >
                 <div className="flex items-center space-x-3">
                   <Shield className="w-4 h-4 shrink-0 text-amber-400" />
                   {!sidebarCollapsed && <span>Administrator</span>}
                 </div>
                 {!sidebarCollapsed && (
-                  isAdminSubmenuOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  !hasProjects ? (
+                    <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+                  ) : isAdminSubmenuOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  )
                 )}
               </button>
 
               {/* Submenu */}
-              {!sidebarCollapsed && isAdminSubmenuOpen && (
-                <div className={`pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4 ${disabledClass}`}>
+              {!sidebarCollapsed && isAdminSubmenuOpen && hasProjects && (
+                <div className="pl-7 pr-1 space-y-1 mt-1 border-l border-slate-700/50 ml-4">
                   {hasPermission('user_accounts') && (
                     <button
                       onClick={() => navigateTo('user_accounts')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('user_accounts') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -481,8 +607,7 @@ export const Sidebar = () => {
                   {hasPermission('user_roles') && (
                     <button
                       onClick={() => navigateTo('user_roles')}
-                      disabled={!isAssigned}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         isActive('user_roles') ? 'text-blue-400 font-semibold bg-white/10' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -505,59 +630,111 @@ export const Sidebar = () => {
           <nav className="space-y-1 mt-1">
             <button
               id="nav-notifications"
-              onClick={() => {
-                setActiveAccordion(null);
-                navigateTo('notifications');
-              }}
-              disabled={!isAssigned}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledClass} ${
-                isActive('notifications')
+              onClick={() => handleNavClick('notifications', 'Notifications')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                hasProjects && isActive('notifications')
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title="Notifications"
+              title={!hasProjects ? "Action Required: Create a project first to access Notifications" : "Notifications"}
             >
               <div className="flex items-center space-x-3">
                 <Bell className="w-4 h-4 shrink-0" />
                 {!sidebarCollapsed && <span>Notifications</span>}
               </div>
-              {!sidebarCollapsed && unreadCount > 0 && (
+              {!sidebarCollapsed && (!hasProjects ? (
+                <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+              ) : unreadCount > 0 ? (
                 <span className="px-1.5 py-0.2 bg-blue-500 text-white text-[10px] font-bold rounded-full">
                   {unreadCount}
                 </span>
-              )}
+              ) : null)}
             </button>
 
             <button
               id="nav-settings"
-              onClick={() => {
-                setActiveAccordion(null);
-                navigateTo('settings');
-              }}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                isActive('settings')
+              onClick={() => handleNavClick('settings', 'Settings')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${disabledBtnClass} ${
+                hasProjects && isActive('settings')
                   ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-900/40'
                   : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}
-              title="Settings"
+              title={!hasProjects ? "Action Required: Create a project first to access Settings" : "Settings"}
             >
-              <Settings className="w-4 h-4 shrink-0 text-slate-300" />
-              {!sidebarCollapsed && <span>Settings</span>}
+              <div className="flex items-center space-x-3">
+                <Settings className="w-4 h-4 shrink-0 text-slate-300" />
+                {!sidebarCollapsed && <span>Settings</span>}
+              </div>
+              {!sidebarCollapsed && !hasProjects && (
+                <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+              )}
             </button>
 
             <button
               id="nav-console-tour"
-              onClick={() => setIsOnboardingOpen(true)}
-              disabled={!isAssigned}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-all ${disabledClass}`}
-              title="Console Tour"
+              onClick={() => {
+                if (!hasProjects) {
+                  handleDisabledClick('Console Tour');
+                  return;
+                }
+                setIsOnboardingOpen(true);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white transition-all ${disabledBtnClass}`}
+              title={!hasProjects ? "Action Required: Create a project first to begin Console Tour" : "Console Tour"}
             >
-              <HelpCircle className="w-4 h-4 shrink-0 text-slate-300" />
-              {!sidebarCollapsed && <span>Console Tour</span>}
+              <div className="flex items-center space-x-3">
+                <HelpCircle className="w-4 h-4 shrink-0 text-slate-300" />
+                {!sidebarCollapsed && <span>Console Tour</span>}
+              </div>
+              {!sidebarCollapsed && !hasProjects && (
+                <Lock className="w-3 h-3 text-slate-500 shrink-0" />
+              )}
             </button>
           </nav>
         </div>
       </div>
+
+      {/* Enterprise Disabled Action Prompt Toast */}
+      {disabledPrompt && (
+        <div className="fixed bottom-6 left-6 z-50 max-w-sm bg-slate-900/95 backdrop-blur-md border border-amber-500/50 text-white p-3.5 rounded-xl shadow-2xl flex items-start space-x-3 animate-in fade-in slide-in-from-bottom-2">
+          <div className="p-1.5 bg-amber-500/20 rounded-lg text-amber-400 shrink-0 mt-0.5">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <div className="font-bold text-amber-300 flex items-center space-x-1">
+              <span>{canManageProjects ? 'Setup Required' : 'Assignment Pending'}</span>
+            </div>
+            <p className="text-slate-300 mt-1 text-[11px] leading-relaxed">{disabledPrompt}</p>
+            {canManageProjects ? (
+              <button
+                onClick={() => {
+                  setDisabledPrompt(null);
+                  navigateTo('project_health');
+                  setIsCreateProjectModalOpen(true);
+                }}
+                className="mt-2 px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-[10px] rounded-md transition-colors inline-flex items-center space-x-1 cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Create Project Now</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setDisabledPrompt(null)}
+                className="mt-2 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold rounded-md transition-colors inline-flex items-center space-x-1 cursor-pointer"
+              >
+                <span>Dismiss</span>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setDisabledPrompt(null)}
+            className="text-slate-400 hover:text-white p-1 rounded-md cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Sidebar Footer Status Card */}
       {!sidebarCollapsed && (
@@ -569,7 +746,7 @@ export const Sidebar = () => {
             </span>
             <div className="truncate">
               <div className="text-[11px] font-bold text-white truncate">{getUserRoleName ? `${getUserRoleName(currentUser)} Console` : 'Console'}</div>
-              <div className="text-[10px] text-emerald-400 font-medium">Connected</div>
+              <div className="text-[10px] text-emerald-400 font-medium">{hasProjects ? 'Workspace Active' : 'Setup Required'}</div>
               <div className="text-[9px] text-slate-400 font-mono truncate">MariaDB: {currentUser?.companyId ? `standupflow_db_${currentUser.companyId}` : 'standupflow_db'}</div>
             </div>
           </div>

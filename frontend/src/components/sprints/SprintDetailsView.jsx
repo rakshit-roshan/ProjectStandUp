@@ -53,9 +53,11 @@ export const SprintDetailsView = () => {
       <div id="sprint-details-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-              {currentSprint?.status || 'Active'}
-            </span>
+            {currentSprint?.status && currentSprint.status.toLowerCase() !== 'planning' && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {currentSprint.status}
+              </span>
+            )}
             <h1 className="text-xl font-bold text-slate-900">{currentSprint?.name || 'Sprint Details'}</h1>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">{currentSprint?.goal || 'Sprint Goals & Execution'}</p>

@@ -22,7 +22,13 @@ import {
   Save,
   Lock,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  ShieldCheck,
+  Code2,
+  Eye,
+  Sparkles,
+  Copy
 } from 'lucide-react';
 
 export const UserRolesView = () => {
@@ -40,8 +46,11 @@ export const UserRolesView = () => {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newRolePermissions, setNewRolePermissions] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [modalError, setModalError] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [templateAppliedToast, setTemplateAppliedToast] = useState(null);
 
   // Delete Role & Reassign State
   const [deleteTargetRole, setDeleteTargetRole] = useState(null);
@@ -56,6 +65,7 @@ export const UserRolesView = () => {
     { key: 'team_members', label: 'Team Members', group: 'Workspace', icon: Users, desc: 'Access team directory & member workload' },
     { key: 'chat', label: 'Chats', group: 'Workspace', icon: MessageSquare, desc: 'Real-time team chat & direct messaging' },
     { key: 'issues', label: 'Issues Registry', group: 'Workspace', icon: AlertCircle, desc: 'Track defect bug reports & issues' },
+    { key: 'new_requirements', label: 'New Requirement', group: 'Workspace', icon: FileText, desc: 'Submit, track, and convert client & product requirements' },
     { key: 'monitor', label: 'Team Monitor', group: 'Workspace', icon: Activity, desc: 'Real-time active work monitor' },
     { key: 'employee_health', label: 'Work Health', group: 'Workspace', icon: HeartPulse, desc: 'Workload health & session duration' },
 
@@ -168,6 +178,115 @@ export const UserRolesView = () => {
     }
   };
 
+  // Predefined Role Templates
+  const ROLE_TEMPLATES = [
+    {
+      id: 'editor',
+      name: 'Editor',
+      badge: 'All Access / Root & Manager Tier',
+      color: 'emerald',
+      icon: ShieldCheck,
+      description: 'Has full administrative and editorial access like Manager or Root Admin. Every feature allowed: projects, sprints, tasks, reports, user roles & admin accounts.',
+      permissions: [
+        'dashboard',
+        'projects',
+        'team_members',
+        'chat',
+        'issues',
+        'new_requirements',
+        'monitor',
+        'employee_health',
+        'tasks_kanban',
+        'tasks_table',
+        'sprints',
+        'reports',
+        'performance_review',
+        'tester_workspace',
+        'user_accounts',
+        'user_roles',
+        'settings',
+        'header_create_actions'
+      ]
+    },
+    {
+      id: 'contributor',
+      name: 'Contributor',
+      badge: 'Task-Related Editing (Developers)',
+      color: 'blue',
+      icon: Code2,
+      description: 'Like Developers: only task-related editing access, defect reporting in issues registry, submitting requirements, and team chat collaboration.',
+      permissions: [
+        'dashboard',
+        'tasks_kanban',
+        'tasks_table',
+        'issues',
+        'new_requirements',
+        'chat',
+        'team_members',
+        'monitor',
+        'employee_health',
+        'header_create_actions',
+        'settings'
+      ]
+    },
+    {
+      id: 'viewer',
+      name: 'Viewer',
+      badge: 'Read-Only (No Edit Options)',
+      color: 'slate',
+      icon: Eye,
+      description: 'Can only view, no edit. Edit options are disabled; can only monitor work progress, sprint trajectories, team monitor, and reports.',
+      permissions: [
+        'dashboard',
+        'projects',
+        'tasks_table',
+        'tasks_kanban',
+        'reports',
+        'monitor',
+        'employee_health',
+        'issues',
+        'new_requirements'
+      ]
+    },
+    {
+      id: 'tester',
+      name: 'Tester',
+      badge: 'Testing Module & QA Defect Queue',
+      color: 'purple',
+      icon: CheckSquare,
+      description: 'Dedicated testing role with QA testing queue, defect verification, issues reporting, task tracking, and chat communication enabled.',
+      permissions: [
+        'dashboard',
+        'tester_workspace',
+        'issues',
+        'tasks_kanban',
+        'tasks_table',
+        'chat',
+        'new_requirements',
+        'settings'
+      ]
+    }
+  ];
+
+  const applyTemplateToActiveRole = (tpl) => {
+    if (!activeRole) {
+      alert("Please select a custom role from the left list first, or click 'Create Role' to create a new role with this template.");
+      return;
+    }
+    setPermissions([...tpl.permissions]);
+    setTemplateAppliedToast(`Applied "${tpl.name}" template permissions! Click "Save Role Permissions" to persist.`);
+    setTimeout(() => setTemplateAppliedToast(null), 4000);
+  };
+
+  const openCreateModalWithTemplate = (tpl) => {
+    setSelectedTemplateId(tpl.id);
+    setNewRoleName(tpl.name);
+    setNewDescription(tpl.description);
+    setNewRolePermissions([...tpl.permissions]);
+    setModalError(null);
+    setIsNewModalOpen(true);
+  };
+
   const handleCreateRole = async (e) => {
     e.preventDefault();
     if (!newRoleName.trim()) {
@@ -179,14 +298,14 @@ export const UserRolesView = () => {
     setIsCreating(true);
 
     try {
-      const defaultPerms = JSON.stringify(allFeatures.map(f => f.key));
+      const permsToSave = newRolePermissions.length > 0 ? newRolePermissions : allFeatures.map(f => f.key);
       const res = await fetch(`${API_BASE_URL}/roles/create`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
           roleName: newRoleName.trim(),
           description: newDescription.trim(),
-          permissionsJson: defaultPerms
+          permissionsJson: JSON.stringify(permsToSave)
         })
       });
 
@@ -195,6 +314,8 @@ export const UserRolesView = () => {
         setIsNewModalOpen(false);
         setNewRoleName('');
         setNewDescription('');
+        setNewRolePermissions([]);
+        setSelectedTemplateId(null);
         await fetchRoles();
         if (fetchRolesPermissions) fetchRolesPermissions();
         setSelectedRoleCode(created.roleCode);
@@ -289,12 +410,106 @@ export const UserRolesView = () => {
         </div>
 
         <button
-          onClick={() => setIsNewModalOpen(true)}
+          onClick={() => {
+            setSelectedTemplateId(null);
+            setNewRoleName('');
+            setNewDescription('');
+            setNewRolePermissions(allFeatures.map(f => f.key));
+            setIsNewModalOpen(true);
+          }}
           className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Create Custom Role</span>
         </button>
+      </div>
+
+      {/* Predefined Role Templates Showcase Bar */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-bold text-slate-900 tracking-tight">Predefined Role Templates</h2>
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase">Standardized Archetypes</span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Deploy pre-configured access tiers in 1 click or load their permission matrix directly into your custom roles.
+          </p>
+        </div>
+
+        {templateAppliedToast && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center space-x-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{templateAppliedToast}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {ROLE_TEMPLATES.map((tpl) => {
+            const Icon = tpl.icon;
+            return (
+              <div
+                key={tpl.id}
+                className="p-4 rounded-xl border border-slate-200 hover:border-amber-300 bg-gradient-to-b from-white to-slate-50/50 hover:shadow-xs transition-all space-y-3 flex flex-col justify-between group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className={`p-2 rounded-lg ${
+                        tpl.color === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
+                        tpl.color === 'blue' ? 'bg-blue-100 text-blue-700' :
+                        tpl.color === 'purple' ? 'bg-purple-100 text-purple-700' :
+                        'bg-slate-200 text-slate-700'
+                      }`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <span className="font-bold text-sm text-slate-900">{tpl.name}</span>
+                    </div>
+
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                      {tpl.permissions.length} perms
+                    </span>
+                  </div>
+
+                  <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                    tpl.color === 'emerald' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                    tpl.color === 'blue' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                    tpl.color === 'purple' ? 'bg-purple-50 text-purple-800 border-purple-200' :
+                    'bg-slate-100 text-slate-700 border-slate-300'
+                  }`}>
+                    {tpl.badge}
+                  </span>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed min-h-[38px]">
+                    {tpl.description}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center space-x-2">
+                  <button
+                    onClick={() => openCreateModalWithTemplate(tpl)}
+                    className="flex-1 py-1.5 px-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                    title={`Create new custom role based on ${tpl.name} template`}
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Create Role</span>
+                  </button>
+
+                  {activeRole && (
+                    <button
+                      onClick={() => applyTemplateToActiveRole(tpl)}
+                      className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg border border-slate-200 transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                      title={`Apply ${tpl.name} permissions to currently selected role (${activeRole.roleName})`}
+                    >
+                      <Copy className="w-3 h-3 text-slate-500" />
+                      <span>Apply</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Main Container */}
@@ -502,13 +717,47 @@ export const UserRolesView = () => {
               </div>
             )}
 
-            <form onSubmit={handleCreateRole} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateRole} className="space-y-3.5 text-xs">
+              {/* Template Quick Selection */}
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-slate-700">Choose a Template (Optional)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ROLE_TEMPLATES.map((tpl) => {
+                    const Icon = tpl.icon;
+                    const isChosen = selectedTemplateId === tpl.id;
+                    return (
+                      <button
+                        type="button"
+                        key={tpl.id}
+                        onClick={() => {
+                          setSelectedTemplateId(tpl.id);
+                          setNewRoleName(tpl.name);
+                          setNewDescription(tpl.description);
+                          setNewRolePermissions([...tpl.permissions]);
+                        }}
+                        className={`p-2.5 rounded-xl border text-left flex items-start space-x-2 transition-all cursor-pointer ${
+                          isChosen
+                            ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300 shadow-2xs'
+                            : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${isChosen ? 'text-amber-600' : 'text-slate-500'}`} />
+                        <div>
+                          <div className="font-bold text-xs text-slate-900">{tpl.name}</div>
+                          <div className="text-[10px] text-slate-500 line-clamp-1">{tpl.badge}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Role Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g., DevOps Lead, Product Owner"
+                  placeholder="e.g., Editor, Contributor, Viewer, QA Lead"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-amber-500 font-semibold"
@@ -524,6 +773,14 @@ export const UserRolesView = () => {
                   onChange={(e) => setNewDescription(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-amber-500"
                 />
+              </div>
+
+              {/* Permissions Summary Tag */}
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-[11px] text-slate-600">
+                <span>Features to be enabled:</span>
+                <span className="font-bold font-mono text-amber-700">
+                  {newRolePermissions.length > 0 ? newRolePermissions.length : allFeatures.length} of {allFeatures.length} features
+                </span>
               </div>
 
               <div className="pt-3 flex items-center justify-end space-x-2">
@@ -590,13 +847,8 @@ export const UserRolesView = () => {
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer shadow-2xs"
                   >
                     {(() => {
-                      const systemRoles = [
-                        { roleCode: 1, roleName: 'Company Administrator' },
-                        { roleCode: 2, roleName: 'Engineering Manager' },
-                        { roleCode: 3, roleName: 'Software Engineer' },
-                        { roleCode: 4, roleName: 'QA / Tester' }
-                      ];
-                      const availableReassignRoles = [...systemRoles, ...roles.filter(r => !r.isSystem && Number(r.roleCode) > 4)]
+                      const adminRole = roles.find(r => Number(r.roleCode) === 1) || { roleCode: 1, roleName: 'Company Administrator' };
+                      const availableReassignRoles = [adminRole, ...roles.filter(r => !r.isSystem && Number(r.roleCode) > 4)]
                         .filter(r => Number(r.roleCode) !== Number(deleteTargetRole.roleCode));
                       return availableReassignRoles.map(r => (
                         <option key={r.roleCode} value={r.roleCode}>

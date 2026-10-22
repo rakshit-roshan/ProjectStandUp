@@ -29,7 +29,10 @@ export const InteractiveSpotlightTour = () => {
     isOnboardingOpen,
     setIsOnboardingOpen,
     navigateTo,
-    currentView
+    currentView,
+    projects = [],
+    currentUser,
+    canUserManageProjects
   } = useApp();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -881,7 +884,8 @@ export const InteractiveSpotlightTour = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentStep, isOnboardingOpen]);
 
-  if (!isOnboardingOpen) return null;
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  if (!isOnboardingOpen || (!canManageProjects && (!projects || projects.length === 0))) return null;
 
   const handleSkip = () => {
     completeTour();

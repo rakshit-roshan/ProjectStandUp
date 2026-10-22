@@ -16,7 +16,8 @@ import {
   Edit2,
   Bug,
   Shield,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-react';
 
 export const TaskDetailsDrawer = () => {
@@ -34,9 +35,11 @@ export const TaskDetailsDrawer = () => {
     sprints,
     currentProject,
     setIsReportBugModalOpen,
-    getProjectMembers
+    getProjectMembers,
+    isViewer
   } = useApp();
 
+  const viewerMode = isViewer ? isViewer() : false;
   const teamMembers = getProjectMembers(currentProject);
 
   if (!isTaskDrawerOpen || !selectedTask) return null;
@@ -102,31 +105,40 @@ export const TaskDetailsDrawer = () => {
               </button>
             )}
 
-            <button
-              onClick={() => {
-                setIsTaskDrawerOpen(false);
-                openEditTaskModal(selectedTask);
-              }}
-              className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-semibold border border-blue-200 transition-colors"
-              title="Edit / Reassign Task"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-              <span>Edit</span>
-            </button>
+            {viewerMode ? (
+              <span className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 text-slate-600 rounded text-xs font-semibold border border-slate-200">
+                <Eye className="w-3.5 h-3.5 text-slate-500" />
+                <span>Viewer (Read-Only)</span>
+              </span>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setIsTaskDrawerOpen(false);
+                    openEditTaskModal(selectedTask);
+                  }}
+                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-semibold border border-blue-200 transition-colors cursor-pointer"
+                  title="Edit / Reassign Task"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
 
-            <button
-              onClick={() => {
-                if (window.confirm(`Are you sure you want to delete task ${selectedTask.id}?`)) {
-                  deleteTask(selectedTask.id);
-                  setIsTaskDrawerOpen(false);
-                }
-              }}
-              className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs font-semibold border border-red-200 transition-colors"
-              title="Delete Task"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
-            </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete task ${selectedTask.id}?`)) {
+                      deleteTask(selectedTask.id);
+                      setIsTaskDrawerOpen(false);
+                    }
+                  }}
+                  className="flex items-center space-x-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs font-semibold border border-red-200 transition-colors cursor-pointer"
+                  title="Delete Task"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => setIsTaskDrawerOpen(false)}
@@ -143,16 +155,18 @@ export const TaskDetailsDrawer = () => {
           <div className="space-y-2">
             <input
               type="text"
+              disabled={viewerMode}
               value={selectedTask.title}
               onChange={(e) => updateTask(selectedTask.id, { title: e.target.value })}
-              className="w-full text-lg font-bold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none pb-1 transition-all"
+              className="w-full text-lg font-bold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none pb-1 transition-all disabled:hover:border-transparent disabled:cursor-not-allowed"
             />
             <textarea
+              disabled={viewerMode}
               value={selectedTask.description}
               onChange={(e) => updateTask(selectedTask.id, { description: e.target.value })}
               placeholder="Add description..."
               rows={3}
-              className="w-full text-xs text-slate-700 border border-slate-200 rounded-md p-2.5 outline-none focus:border-blue-500"
+              className="w-full text-xs text-slate-700 border border-slate-200 rounded-md p-2.5 outline-none focus:border-blue-500 disabled:bg-slate-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -162,9 +176,10 @@ export const TaskDetailsDrawer = () => {
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Status</label>
               <select
+                disabled={viewerMode}
                 value={selectedTask.status}
                 onChange={(e) => updateTaskStatus(selectedTask.id, e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
               >
                 <option value="Backlog">Backlog</option>
                 <option value="In Progress">In Progress</option>
@@ -177,9 +192,10 @@ export const TaskDetailsDrawer = () => {
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Priority</label>
               <select
+                disabled={viewerMode}
                 value={selectedTask.priority}
                 onChange={(e) => updateTask(selectedTask.id, { priority: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
               >
                 <option value="Critical">Critical</option>
                 <option value="High">High</option>
@@ -192,6 +208,7 @@ export const TaskDetailsDrawer = () => {
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Assignee</label>
               <select
+                disabled={viewerMode}
                 value={selectedTask.assigneeId || ''}
                 onChange={(e) => {
                   const targetId = e.target.value;
@@ -212,7 +229,7 @@ export const TaskDetailsDrawer = () => {
                     }
                   }
                 }}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
               >
                 <option value="">Unassigned</option>
                 {teamMembers.map(u => (
@@ -226,9 +243,10 @@ export const TaskDetailsDrawer = () => {
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Story Points</label>
               <input
                 type="number"
+                disabled={viewerMode}
                 value={selectedTask.storyPoints}
                 onChange={(e) => updateTask(selectedTask.id, { storyPoints: parseInt(e.target.value) || 0 })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
               />
             </div>
 

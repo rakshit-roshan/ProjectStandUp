@@ -9,7 +9,8 @@ export const CreateProjectModal = () => {
     createProject,
     users = [],
     currentUser,
-    getUserRoleName
+    getUserRoleName,
+    canUserManageProjects
   } = useApp();
 
   const [name, setName] = useState('');
@@ -21,7 +22,8 @@ export const CreateProjectModal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  if (!isCreateProjectModalOpen) return null;
+  const canManage = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  if (!isCreateProjectModalOpen || !canManage) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

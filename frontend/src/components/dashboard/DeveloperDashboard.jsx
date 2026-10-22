@@ -29,8 +29,13 @@ export const DeveloperDashboard = () => {
     navigateTo,
     setIsTaskDrawerOpen,
     setSelectedTaskId,
-    isTaskAssignedToUser
+    isTaskAssignedToUser,
+    projects = [],
+    canUserManageProjects
   } = useApp();
+
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
   const [viewMode, setViewMode] = useState('kanban'); // kanban | list
 
@@ -49,6 +54,7 @@ export const DeveloperDashboard = () => {
       {/* Unassigned Team Member Banner */}
       <UnassignedMemberBanner />
 
+      <div className={isSubUserUnassigned ? "space-y-6 pointer-events-none opacity-40 select-none" : "space-y-6"}>
       {/* Top Welcome Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-5 rounded-lg shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -360,6 +366,7 @@ export const DeveloperDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

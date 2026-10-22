@@ -50,9 +50,13 @@ export const ManagerDashboard = () => {
     getProjectMembers,
     isUserAdmin,
     isTaskAssignedToUser,
-    hasPermission,
-    getUserRoleName
+    getUserRoleName,
+    canUserManageProjects,
+    hasPermission
   } = useApp();
+
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
   const canManageTasks = (isUserAdmin ? isUserAdmin() : false) || (hasPermission ? hasPermission('header_create_actions') : false);
 
@@ -208,6 +212,7 @@ export const ManagerDashboard = () => {
   return (
     <div className="space-y-6 pb-8 max-w-[1600px] mx-auto">
       <UnassignedMemberBanner />
+      <div className={isSubUserUnassigned ? "space-y-6 pointer-events-none opacity-40 select-none" : "space-y-6"}>
       {/* 1. Welcome Hero Banner matching newdesign.png without emojis */}
       <div
         id="home-welcome-banner"
@@ -389,10 +394,6 @@ export const ManagerDashboard = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2.5">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span>{activeSprint?.status || 'PLANNING'}</span>
-                  </span>
                   <h2 className="text-lg font-bold text-slate-900">
                     {activeSprint?.name || 'No Active Sprint'}
                   </h2>
@@ -647,9 +648,11 @@ export const ManagerDashboard = () => {
                           <span className="font-bold text-slate-900 text-xs">
                             {sprint?.name || 'Sprint Cycle'}
                           </span>
-                          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-200 text-slate-700">
-                            {sprint?.status || 'PLANNING'}
-                          </span>
+                          {sprint?.status && sprint.status.toLowerCase() !== 'planning' && (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-200 text-slate-700">
+                              {sprint.status}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -864,6 +867,7 @@ export const ManagerDashboard = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

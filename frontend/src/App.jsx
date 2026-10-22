@@ -33,6 +33,7 @@ import { NotificationsCenterView } from './components/notifications/Notification
 import { SettingsView } from './components/settings/SettingsView';
 import { TeamMembersView } from './components/team/TeamMembersView';
 import { TeamChatView } from './components/chat/TeamChatView';
+import { RequirementsView } from './components/requirements/RequirementsView';
 
 // Admin & Governance
 import { UserAccountsView } from './components/admin/UserAccountsView';
@@ -51,12 +52,21 @@ import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { EditProjectModal } from './components/modals/EditProjectModal';
 
 const MainContent = () => {
-  const { isAuthenticated, currentView } = useApp();
+  const {
+    isAuthenticated,
+    currentView,
+    projects = [],
+    currentUser,
+    canUserManageProjects
+  } = useApp();
 
   if (!isAuthenticated) {
     if (currentView === 'register') return <RegisterPage />;
     return <LoginPage />;
   }
+
+  const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
+  const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
   const renderView = () => {
     switch (currentView) {
@@ -76,6 +86,8 @@ const MainContent = () => {
         return <TableView />;
       case 'issues':
         return <IssuesTableView />;
+      case 'new_requirements':
+        return <RequirementsView />;
       case 'sprints':
       case 'sprint_details':
         return <SprintDetailsView />;

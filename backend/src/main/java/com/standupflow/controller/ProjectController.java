@@ -17,6 +17,12 @@ public class ProjectController {
     @Autowired
     private com.standupflow.repository.TaskRepository taskRepository;
 
+    @Autowired
+    private com.standupflow.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.standupflow.repository.InvitationRepository invitationRepository;
+
     @GetMapping
     public List<Project> getAllProjects(
             @RequestHeader(value = "X-User-Id", required = false) String userId,
@@ -84,8 +90,23 @@ public class ProjectController {
     }
 
     @PostMapping
-    public Project createProject(@RequestBody Project project) {
-        return projectRepository.save(project);
+    public org.springframework.http.ResponseEntity<?> createProject(
+            @RequestBody Project project,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
+        boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
+        int roleCode = -1;
+        try {
+            if (userRole != null) roleCode = Integer.parseInt(userRole.trim());
+        } catch (Exception ignored) {}
+
+        boolean isAdminOrManager = isRootAdmin || roleCode == 1 || roleCode == 2;
+        if (!isAdminOrManager && roleCode > 0) {
+            return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+                    .body("Only workspace administrators or managers can create new projects.");
+        }
+        return org.springframework.http.ResponseEntity.ok(projectRepository.save(project));
     }
 
     @PutMapping("/{id}")
@@ -116,5 +137,54 @@ public class ProjectController {
     @DeleteMapping("/{id}")
     public void deleteProject(@PathVariable String id) {
         projectRepository.deleteById(id);
+    }
+
+    @DeleteMapping("/{projectId}/members/{userId}")
+    public org.springframework.http.ResponseEntity<?> removeMemberFromProject(
+            @PathVariable String projectId,
+            @PathVariable String userId) {
+        return projectRepository.findById(projectId).map(project -> {
+            java.util.Optional<com.standupflow.model.User> userOpt = userRepository.findById(userId);
+            String userEmail = userOpt.map(com.standupflow.model.User::getEmail).orElse("").trim().toLowerCase();
+
+            // 1. Remove from memberIds
+            if (project.getMemberIds() != null && !project.getMemberIds().isBlank()) {
+                java.util.List<String> ids = new java.util.ArrayList<>(java.util.Arrays.asList(project.getMemberIds().split(",")));
+                ids.removeIf(id -> id.trim().equals(userId.trim()));
+                project.setMemberIds(String.join(",", ids));
+            }
+
+            // 2. Remove from memberEmails
+            if (project.getMemberEmails() != null && !project.getMemberEmails().isBlank() && !userEmail.isEmpty()) {
+                java.util.List<String> emails = new java.util.ArrayList<>(java.util.Arrays.asList(project.getMemberEmails().split(",")));
+                emails.removeIf(e -> e.trim().equalsIgnoreCase(userEmail));
+                project.setMemberEmails(String.join(",", emails));
+            }
+            projectRepository.save(project);
+
+            // 3. Clear managerCode on User if it matches this project
+            userOpt.ifPresent(user -> {
+                String uCode = user.getManagerCode();
+                if (uCode != null && (uCode.equalsIgnoreCase(project.getInviteCode()) || uCode.equalsIgnoreCase(project.getCode()))) {
+                    user.setManagerCode(null);
+                    userRepository.save(user);
+                }
+            });
+
+            // 4. Update/Delete any Invitation records for this user and project
+            if (!userEmail.isEmpty()) {
+                java.util.List<com.standupflow.model.Invitation> userInvs = invitationRepository.findByInviteeEmail(userEmail);
+                for (com.standupflow.model.Invitation inv : userInvs) {
+                    if (projectId.equals(inv.getProjectId()) 
+                            || (project.getInviteCode() != null && project.getInviteCode().equalsIgnoreCase(inv.getManagerCode()))
+                            || (project.getCode() != null && project.getCode().equalsIgnoreCase(inv.getManagerCode()))) {
+                        inv.setStatus("REMOVED");
+                        invitationRepository.save(inv);
+                    }
+                }
+            }
+
+            return org.springframework.http.ResponseEntity.ok(project);
+        }).orElse(org.springframework.http.ResponseEntity.notFound().build());
     }
 }

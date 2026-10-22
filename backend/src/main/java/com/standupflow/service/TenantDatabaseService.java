@@ -408,6 +408,30 @@ public class TenantDatabaseService {
                     "timestamp VARCHAR(50)" +
                     ");");
 
+            // Table: requirements (matches Requirement.java)
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS requirements (" +
+                    "id VARCHAR(255) PRIMARY KEY, " +
+                    "title VARCHAR(255), " +
+                    "description VARCHAR(4000), " +
+                    "priority VARCHAR(50), " +
+                    "category VARCHAR(100), " +
+                    "project_id VARCHAR(255), " +
+                    "project_name VARCHAR(255), " +
+                    "sprint_id VARCHAR(255), " +
+                    "sprint_name VARCHAR(255), " +
+                    "assignee_id VARCHAR(255), " +
+                    "assignee_name VARCHAR(255), " +
+                    "assignee_avatar LONGTEXT, " +
+                    "status VARCHAR(50), " +
+                    "converted_task_id VARCHAR(255), " +
+                    "created_by_user_id VARCHAR(255), " +
+                    "created_by_name VARCHAR(255), " +
+                    "created_by_avatar LONGTEXT, " +
+                    "attachments_json LONGTEXT, " +
+                    "created_at VARCHAR(100), " +
+                    "updated_at VARCHAR(100)" +
+                    ");");
+
             // Ensure schema alignment for any existing tables with ALTER TABLE ADD COLUMN IF NOT EXISTS
             alignExistingTenantTableSchemas(stmt);
 
@@ -481,7 +505,9 @@ public class TenantDatabaseService {
             "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS type VARCHAR(50);",
             "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description VARCHAR(1000);",
             "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);",
-            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_at VARCHAR(100);"
+            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_at VARCHAR(100);",
+            // Requirements
+            "ALTER TABLE requirements ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;"
         };
 
         for (String sql : alterStatements) {

@@ -11,7 +11,8 @@ import {
   MoreHorizontal,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 
 export const KanbanView = () => {
@@ -28,8 +29,11 @@ export const KanbanView = () => {
     users,
     currentProject,
     isUserAdmin,
-    isTaskAssignedToUser
+    isTaskAssignedToUser,
+    isViewer
   } = useApp();
+
+  const viewerMode = isViewer ? isViewer() : false;
 
   const teamMembers = !currentProject ? [] : users.filter(u => {
     if (currentProject.memberEmails && currentProject.memberEmails.includes(u.email)) return true;
@@ -100,6 +104,13 @@ export const KanbanView = () => {
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
+
+          {viewerMode && (
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md border border-slate-200 flex items-center space-x-1">
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>Viewer (Read-Only)</span>
+            </span>
+          )}
         </div>
       </div>
 

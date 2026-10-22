@@ -269,11 +269,14 @@ export const TeamMembersView = () => {
                     className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-emerald-500 cursor-pointer"
                   >
                     <option value="">-- Choose User to Assign --</option>
-                    {unassignedCompanyUsers.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullname || u.name} ({getUserRoleName ? getUserRoleName(u) : u.role}) — {u.email}
-                      </option>
-                    ))}
+                    {unassignedCompanyUsers.map(u => {
+                      const hasPending = projectPendingInvites.some(i => i.inviteeEmail?.toLowerCase().trim() === u.email?.toLowerCase().trim());
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {u.fullname || u.name} ({getUserRoleName ? getUserRoleName(u) : u.role}) — {u.email} {hasPending ? ' [Invitation Pending]' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -287,15 +290,15 @@ export const TeamMembersView = () => {
                     setLoading(false);
                     if (res?.success) {
                       const u = users.find(x => x.id === selectedAssigneeUserId);
-                      setStatusMsg(`Assigned ${u?.name || 'User'} to "${currentProject.name}" workspace!`);
+                      setStatusMsg(`Invitation sent to ${u?.fullname || u?.name || 'User'}! Status is PENDING until user accepts.`);
                       setSelectedAssigneeUserId('');
-                      setTimeout(() => setStatusMsg(''), 4000);
+                      setTimeout(() => setStatusMsg(''), 5000);
                     }
                   }}
                   className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>{loading ? 'Assigning...' : `Assign to ${currentProject?.name || 'Project'}`}</span>
+                  <span>{loading ? 'Sending Invite...' : `Invite to ${currentProject?.name || 'Project'}`}</span>
                 </button>
               </div>
             </div>

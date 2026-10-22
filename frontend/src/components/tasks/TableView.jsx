@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Download,
   Trash2,
-  Tag
+  Tag,
+  Eye
 } from 'lucide-react';
 
 export const TableView = () => {
@@ -28,8 +29,11 @@ export const TableView = () => {
     currentProject,
     currentUser,
     isUserAdmin,
-    isTaskAssignedToUser
+    isTaskAssignedToUser,
+    isViewer
   } = useApp();
+
+  const viewerMode = isViewer ? isViewer() : false;
 
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [sortField, setSortField] = useState('id');
@@ -112,8 +116,8 @@ export const TableView = () => {
             <option value="Completed">Completed</option>
           </select>
 
-          {/* Bulk actions banner if items selected */}
-          {selectedTaskIds.length > 0 && (
+          {/* Bulk actions banner if items selected (non-viewer only) */}
+          {!viewerMode && selectedTaskIds.length > 0 && (
             <div className="flex items-center space-x-1.5 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 text-xs">
               <span className="font-bold text-blue-700">{selectedTaskIds.length} selected</span>
               <button
@@ -126,6 +130,13 @@ export const TableView = () => {
                 Mark Completed
               </button>
             </div>
+          )}
+
+          {viewerMode && (
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded border border-slate-200 flex items-center space-x-1">
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>Viewer (Read-Only)</span>
+            </span>
           )}
         </div>
       </div>
