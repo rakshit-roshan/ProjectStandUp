@@ -22,8 +22,6 @@ export const TableView = () => {
     searchQuery,
     setSearchQuery,
     setIsCreateTaskModalOpen,
-    setSelectedTaskId,
-    setIsTaskDrawerOpen,
     updateTaskStatus,
     users,
     currentProject,
@@ -196,15 +194,11 @@ export const TableView = () => {
                   return (
                     <tr
                       key={task.id}
-                      onClick={() => {
-                        setSelectedTaskId(task.id);
-                        setIsTaskDrawerOpen(true);
-                      }}
-                      className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
+                      className={`hover:bg-slate-50/80 transition-colors ${
                         isSelected ? 'bg-blue-50/40' : ''
                       }`}
                     >
-                      <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                      <td className="p-3 text-center">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -260,15 +254,17 @@ export const TableView = () => {
                       <td className="p-3 text-center font-mono font-semibold">{task.storyPoints}</td>
                       <td className="p-3 text-slate-500 font-mono text-[11px]">{task.dueDate}</td>
                       <td className="p-3 text-right" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => {
-                            setSelectedTaskId(task.id);
-                            setIsTaskDrawerOpen(true);
-                          }}
-                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors"
-                        >
-                          Details →
-                        </button>
+                        {task.id && (
+                          <button
+                            onClick={() => {
+                              setSelectedTaskId(task.id);
+                              setIsTaskDrawerOpen(true);
+                            }}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors"
+                          >
+                            Details →
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

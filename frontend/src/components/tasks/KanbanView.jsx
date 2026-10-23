@@ -21,8 +21,6 @@ export const KanbanView = () => {
     tasks,
     updateTaskStatus,
     setIsCreateTaskModalOpen,
-    setSelectedTaskId,
-    setIsTaskDrawerOpen,
     searchQuery,
     setSearchQuery,
     sprints,
@@ -158,11 +156,7 @@ export const KanbanView = () => {
                     return (
                       <div
                         key={task.id}
-                        onClick={() => {
-                          setSelectedTaskId(task.id);
-                          setIsTaskDrawerOpen(true);
-                        }}
-                        className="p-3.5 bg-white rounded-md border border-slate-200 shadow-2xs hover:shadow-xs hover:border-blue-400 cursor-pointer transition-all space-y-2.5 group"
+                        className="p-3.5 bg-white rounded-md border border-slate-200 shadow-2xs space-y-2.5 select-text"
                       >
                         {/* Top Meta Line */}
                         <div className="flex items-center justify-between">
@@ -185,7 +179,7 @@ export const KanbanView = () => {
                         </div>
 
                         {/* Task Title */}
-                        <h4 className="text-xs font-semibold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
+                        <h4 className="text-xs font-semibold text-slate-900 leading-snug">
                           {task.title}
                         </h4>
 

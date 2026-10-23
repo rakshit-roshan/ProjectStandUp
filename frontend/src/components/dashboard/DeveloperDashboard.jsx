@@ -15,7 +15,8 @@ import {
   Bug,
   Zap,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  TestTube2
 } from 'lucide-react';
 
 export const DeveloperDashboard = () => {
@@ -31,7 +32,8 @@ export const DeveloperDashboard = () => {
     setSelectedTaskId,
     isTaskAssignedToUser,
     projects = [],
-    canUserManageProjects
+    canUserManageProjects,
+    openSendToTestingModal
   } = useApp();
 
   const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
@@ -205,12 +207,12 @@ export const DeveloperDashboard = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateTaskStatus(task.id, 'In Review');
+                        openSendToTestingModal(task);
                       }}
-                      className="w-full mt-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs"
+                      className="w-full mt-2 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-[11px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs cursor-pointer"
                     >
-                      <Send className="w-3 h-3" />
-                      <span>Submit for Review</span>
+                      <TestTube2 className="w-3 h-3" />
+                      <span>Send to Testing</span>
                     </button>
                   </div>
                 ))}
@@ -307,11 +309,12 @@ export const DeveloperDashboard = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateTaskStatus(task.id, 'In Review');
+                              openSendToTestingModal(task);
                             }}
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-semibold hover:bg-blue-700"
+                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer ml-auto"
                           >
-                            Submit Review
+                            <TestTube2 className="w-3 h-3" />
+                            <span>Send to Testing</span>
                           </button>
                         )}
                       </td>

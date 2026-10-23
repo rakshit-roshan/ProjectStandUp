@@ -52,7 +52,9 @@ export const ManagerDashboard = () => {
     isTaskAssignedToUser,
     getUserRoleName,
     canUserManageProjects,
-    hasPermission
+    hasPermission,
+    setSelectedTaskId,
+    setIsTaskDrawerOpen
   } = useApp();
 
   const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
@@ -411,7 +413,11 @@ export const ManagerDashboard = () => {
                   <span>Sprint Details</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-                <button className="p-1 rounded text-slate-400 hover:text-slate-600">
+                <button
+                  onClick={() => navigateTo('sprints')}
+                  className="p-1 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                  title="Sprint Details"
+                >
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
@@ -437,8 +443,8 @@ export const ManagerDashboard = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
               {/* BACKLOG */}
               <div
-                onClick={() => navigateTo('tasks_kanban')}
-                className="bg-slate-50/80 p-3.5 rounded-lg border border-slate-200/80 hover:bg-slate-100/80 cursor-pointer transition-colors"
+                onClick={currentProject ? () => navigateTo('tasks_kanban') : undefined}
+                className={`bg-slate-50/80 p-3.5 rounded-lg border border-slate-200/80 transition-colors ${currentProject ? 'hover:bg-slate-100/80 cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center space-x-1.5 text-[11px] font-bold text-slate-500 uppercase">
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
@@ -451,8 +457,8 @@ export const ManagerDashboard = () => {
 
               {/* IN PROGRESS */}
               <div
-                onClick={() => navigateTo('tasks_kanban')}
-                className="bg-blue-50/40 p-3.5 rounded-lg border border-blue-100 hover:bg-blue-50/70 cursor-pointer transition-colors"
+                onClick={currentProject ? () => navigateTo('tasks_kanban') : undefined}
+                className={`bg-blue-50/40 p-3.5 rounded-lg border border-blue-100 transition-colors ${currentProject ? 'hover:bg-blue-50/70 cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center space-x-1.5 text-[11px] font-bold text-blue-600 uppercase">
                   <RotateCcw className="w-3.5 h-3.5 text-blue-500" />
@@ -465,8 +471,8 @@ export const ManagerDashboard = () => {
 
               {/* IN REVIEW */}
               <div
-                onClick={() => navigateTo('tasks_kanban')}
-                className="bg-amber-50/40 p-3.5 rounded-lg border border-amber-100 hover:bg-amber-50/70 cursor-pointer transition-colors"
+                onClick={currentProject ? () => navigateTo('tasks_kanban') : undefined}
+                className={`bg-amber-50/40 p-3.5 rounded-lg border border-amber-100 transition-colors ${currentProject ? 'hover:bg-amber-50/70 cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center space-x-1.5 text-[11px] font-bold text-amber-600 uppercase">
                   <Clock className="w-3.5 h-3.5 text-amber-500" />
@@ -479,8 +485,8 @@ export const ManagerDashboard = () => {
 
               {/* COMPLETED */}
               <div
-                onClick={() => navigateTo('tasks_kanban')}
-                className="bg-emerald-50/40 p-3.5 rounded-lg border border-emerald-100 hover:bg-emerald-50/70 cursor-pointer transition-colors"
+                onClick={currentProject ? () => navigateTo('tasks_kanban') : undefined}
+                className={`bg-emerald-50/40 p-3.5 rounded-lg border border-emerald-100 transition-colors ${currentProject ? 'hover:bg-emerald-50/70 cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center space-x-1.5 text-[11px] font-bold text-emerald-600 uppercase">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
@@ -500,13 +506,15 @@ export const ManagerDashboard = () => {
                 <Flame className="w-4 h-4 text-amber-500" />
                 <h3 className="text-sm font-bold text-slate-900">Top Priority Tasks</h3>
               </div>
-              <button
-                onClick={() => navigateTo('tasks_kanban')}
-                className="text-xs text-blue-600 font-semibold hover:underline flex items-center space-x-1"
-              >
-                <span>View Kanban Board</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {currentProject && (
+                <button
+                  onClick={() => navigateTo('tasks_kanban')}
+                  className="text-xs text-blue-600 font-semibold hover:underline flex items-center space-x-1"
+                >
+                  <span>View Kanban Board</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -534,8 +542,13 @@ export const ManagerDashboard = () => {
                     projectTasks.map((task, index) => (
                       <tr
                         key={task.id}
-                        onClick={() => navigateTo('task_details', task.id)}
-                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                        onClick={() => {
+                          if (task.id) {
+                            setSelectedTaskId(task.id);
+                            setIsTaskDrawerOpen(true);
+                          }
+                        }}
+                        className={`hover:bg-slate-50/80 transition-colors ${task.id ? 'cursor-pointer' : ''}`}
                       >
                         <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">{index + 1}</td>
                         <td className="py-3 px-3">
@@ -669,7 +682,14 @@ export const ManagerDashboard = () => {
                           {sTasks.reduce((acc, t) => acc + (Number(t.storyPoints) || 0), 0)} pts
                         </span>
 
-                        <button className="p-1 rounded text-slate-400 hover:text-slate-600">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigateTo('sprints');
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                          title="View Sprint Details"
+                        >
                           <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
@@ -683,7 +703,16 @@ export const ManagerDashboard = () => {
                           </div>
                         ) : (
                           sTasks.map(task => (
-                            <div key={task.id} className="p-2.5 hover:bg-slate-50 flex items-center justify-between text-xs rounded-md">
+                            <div
+                              key={task.id}
+                              onClick={() => {
+                                if (task.id) {
+                                  setSelectedTaskId(task.id);
+                                  setIsTaskDrawerOpen(true);
+                                }
+                              }}
+                              className={`p-2.5 flex items-center justify-between text-xs rounded-md transition-colors ${task.id ? 'hover:bg-slate-50 cursor-pointer' : 'hover:bg-slate-50'}`}
+                            >
                               <div className="flex items-center space-x-2.5">
                                 <span className="font-mono text-[11px] font-bold text-blue-600">{task.id}</span>
                                 <span className="font-semibold text-slate-800">{task.title}</span>
@@ -806,7 +835,10 @@ export const ManagerDashboard = () => {
                 <Activity className="w-4 h-4 text-blue-600" />
                 <h3 className="text-sm font-bold text-slate-900">Recent Sprint Activity</h3>
               </div>
-              <button className="text-xs text-blue-600 font-semibold hover:underline flex items-center space-x-1">
+              <button
+                onClick={() => navigateTo('sprints')}
+                className="text-xs text-blue-600 font-semibold hover:underline flex items-center space-x-1"
+              >
                 <span>View All</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
@@ -828,7 +860,7 @@ export const ManagerDashboard = () => {
                       {act.user && <strong className="font-bold">{act.user} </strong>}
                       {act.action}{' '}
                       {act.taskId && (
-                        <span className="font-mono font-bold text-blue-600 hover:underline">
+                        <span className="font-mono font-bold text-blue-600">
                           {act.taskId}
                         </span>
                       )}

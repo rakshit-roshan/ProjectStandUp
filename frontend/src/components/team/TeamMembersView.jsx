@@ -295,7 +295,7 @@ export const TeamMembersView = () => {
                       setTimeout(() => setStatusMsg(''), 5000);
                     }
                   }}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>{loading ? 'Sending Invite...' : `Invite to ${currentProject?.name || 'Project'}`}</span>

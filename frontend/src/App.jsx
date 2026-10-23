@@ -28,6 +28,7 @@ import { PerformanceReviewView } from './components/health/PerformanceReviewView
 
 // Testing & Analytics
 import { BugReportModal } from './components/testing/BugReportModal';
+import { SendToTestingModal } from './components/testing/SendToTestingModal';
 import { ReportsAnalyticsView } from './components/analytics/ReportsAnalyticsView';
 import { NotificationsCenterView } from './components/notifications/NotificationsCenterView';
 import { SettingsView } from './components/settings/SettingsView';
@@ -57,6 +58,7 @@ const MainContent = () => {
     currentView,
     projects = [],
     currentUser,
+    currentRole,
     canUserManageProjects
   } = useApp();
 
@@ -124,8 +126,8 @@ const MainContent = () => {
       <div className="flex-1 flex overflow-hidden min-h-0 relative">
         <Sidebar />
         <main className="flex-1 h-full overflow-y-auto bg-slate-50 relative p-4 md:p-6 min-w-0" style={{ background: '#e5f4fa38' }}>
-          {renderView()}
-        </main>
+            {renderView()}
+          </main>
       </div>
 
       {/* Flyout Drawers & Global Modals */}
@@ -137,6 +139,7 @@ const MainContent = () => {
       <CreateProjectModal />
       <EditProjectModal />
       <BugReportModal />
+      <SendToTestingModal />
 
       {/* Interactive Element-Targeted Console Spotlight Tour */}
       <InteractiveSpotlightTour />

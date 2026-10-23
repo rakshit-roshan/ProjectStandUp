@@ -182,9 +182,9 @@ export const RegisterPage = () => {
             {/* Terms notice */}
             <p className="text-xs text-slate-500 text-center leading-tight font-normal">
               By clicking Agree & Join, you agree to the StandupFlow{' '}
-              <a href="#terms" onClick={(e) => e.preventDefault()} className="text-[#0A66C2] font-semibold hover:underline">User Agreement</a>,{' '}
-              <a href="#privacy" onClick={(e) => e.preventDefault()} className="text-[#0A66C2] font-semibold hover:underline">Privacy Policy</a>, and{' '}
-              <a href="#cookie" onClick={(e) => e.preventDefault()} className="text-[#0A66C2] font-semibold hover:underline">Cookie Policy</a>.
+              <span className="text-[#0A66C2] font-semibold">User Agreement</span>,{' '}
+              <span className="text-[#0A66C2] font-semibold">Privacy Policy</span>, and{' '}
+              <span className="text-[#0A66C2] font-semibold">Cookie Policy</span>.
             </p>
 
             {/* Submit Button */}

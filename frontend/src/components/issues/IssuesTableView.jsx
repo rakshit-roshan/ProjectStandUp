@@ -10,7 +10,8 @@ import {
   MessageSquare,
   Clock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 
 export const IssuesTableView = () => {
@@ -158,15 +159,30 @@ export const IssuesTableView = () => {
                     <td className="p-3 font-mono text-[11px] text-red-600 font-semibold">{issue.dueDate}</td>
                     <td className="p-3 text-center font-mono">{issue.commentsCount || 0}</td>
                     <td className="p-3 text-right">
-                      <button
-                        onClick={() => {
-                          setSelectedIssueId(issue.id);
-                          setIsIssueDrawerOpen(true);
-                        }}
-                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold"
-                      >
-                        Inspect →
-                      </button>
+                      <div className="flex items-center justify-end space-x-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIssueId(issue.id);
+                            setIsIssueDrawerOpen(true);
+                          }}
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+                          title="Reassign Defect & Task to Developer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reassign</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIssueId(issue.id);
+                            setIsIssueDrawerOpen(true);
+                          }}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                        >
+                          Inspect →
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

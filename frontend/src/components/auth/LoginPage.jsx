@@ -35,7 +35,7 @@ export const LoginPage = () => {
       {/* Top Header Bar */}
       <header className="w-full bg-white border-b border-slate-200/80 shrink-0 shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigateTo('login')}>
+          <div className="flex items-center space-x-3">
             <img src="/logo.png" alt="StandupFlow Logo" className="w-9 h-9 rounded-xl object-contain bg-white p-0.5 border border-slate-200 shadow-2xs" />
             <div className="flex items-baseline space-x-1.5">
               <span className="font-bold text-slate-900 text-xl tracking-tight">

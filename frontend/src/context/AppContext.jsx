@@ -321,6 +321,14 @@ export const AppProvider = ({ children }) => {
     setIsEditProjectModalOpen(true);
   };
 
+  const [isSendToTestingModalOpen, setIsSendToTestingModalOpen] = useState(false);
+  const [testingTargetTask, setTestingTargetTask] = useState(null);
+
+  const openSendToTestingModal = (task) => {
+    setTestingTargetTask(task);
+    setIsSendToTestingModalOpen(true);
+  };
+
   // Sync state changes with localStorage
   useEffect(() => {
     if (currentUser) {
@@ -828,16 +836,20 @@ export const AppProvider = ({ children }) => {
       setCurrentView('project_health');
       return;
     }
-    setCurrentView(viewName);
-    if (viewName === 'task_details' && extraId) {
-      setSelectedTaskId(extraId);
+    if (viewName === 'task_details') {
+      if (extraId) setSelectedTaskId(extraId);
       setIsTaskDrawerOpen(true);
-    } else if (viewName === 'issue_details' && extraId) {
-      setSelectedIssueId(extraId);
+      return;
+    } else if (viewName === 'issue_details') {
+      if (extraId) setSelectedIssueId(extraId);
       setIsIssueDrawerOpen(true);
-    } else if (viewName === 'sprint_details' && extraId) {
-      setSelectedSprintId(extraId);
+      return;
+    } else if (viewName === 'sprint_details') {
+      if (extraId) setSelectedSprintId(extraId);
+      setCurrentView('sprints');
+      return;
     }
+    setCurrentView(viewName);
   };
 
   // Create Project REST Persist
@@ -1209,7 +1221,22 @@ export const AppProvider = ({ children }) => {
   const createIssue = async (bugData) => {
     const activeUrl = apiUrl || API_BASE_URL;
     const activeProject = currentProject || (projects.length > 0 ? projects[0] : null);
-    const assignedUser = users.find(u => String(u.id) === String(bugData.assigneeId) || u.email === bugData.assigneeId);
+    
+    // Resolve multiple or single assignees
+    const rawAssigneeIds = Array.isArray(bugData.assigneeIds)
+      ? bugData.assigneeIds.map(String)
+      : (bugData.assigneeId ? String(bugData.assigneeId).split(',').map(s => s.trim()).filter(Boolean) : []);
+    const assignedUsers = users.filter(u => rawAssigneeIds.includes(String(u.id)) || rawAssigneeIds.includes(u.email));
+    const fallbackUser = users.find(u => String(u.id) === String(bugData.assigneeId) || u.email === bugData.assigneeId);
+    
+    const resolvedIds = assignedUsers.length > 0 
+      ? assignedUsers.map(u => u.id) 
+      : (fallbackUser ? [fallbackUser.id] : ['USR-102']);
+    const resolvedNames = assignedUsers.length > 0
+      ? assignedUsers.map(u => u.name).join(', ')
+      : (fallbackUser?.name || bugData.assigneeName || 'Rahul Sharma');
+    const resolvedAvatar = assignedUsers[0]?.avatar || fallbackUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80';
+
     const linkedTask = tasks.find(t => String(t.id) === String(bugData.linkedTaskId));
     const bugId = `BUG-${200 + issues.length + 1}`;
 
@@ -1222,9 +1249,10 @@ export const AppProvider = ({ children }) => {
       severity: bugData.severity || 'High',
       projectId: bugData.projectId || activeProject?.id || 'PRJ-101',
       projectName: bugData.projectName || activeProject?.name || 'Default Project',
-      assigneeId: bugData.assigneeId || assignedUser?.id || 'USR-102',
-      assigneeName: assignedUser?.name || bugData.assigneeName || 'Rahul Sharma',
-      assigneeAvatar: assignedUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+      assigneeId: resolvedIds.join(','),
+      assigneeIds: resolvedIds,
+      assigneeName: resolvedNames,
+      assigneeAvatar: resolvedAvatar,
       reporterId: currentUser?.id || 'USR-103',
       reporterName: currentUser?.name || 'Priya Verma',
       module: bugData.module || 'Auth API',
@@ -1411,6 +1439,128 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       console.warn('Update issue state backend sync fallback:', e);
     }
+  };
+
+  const updateIssue = async (issueId, patchData) => {
+    const activeUrl = apiUrl || API_BASE_URL;
+    setIssues(prev => prev.map(i => i.id === issueId ? { ...i, ...patchData } : i));
+    try {
+      await fetch(`${activeUrl}/issues/${issueId}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(patchData)
+      });
+    } catch (e) {
+      console.warn('Update issue backend sync fallback:', e);
+    }
+  };
+
+  const sendTaskToTesting = async (taskId, testerIds, testNotes = '') => {
+    const targetTask = tasks.find(t => String(t.id) === String(taskId)) || (selectedTask?.id === taskId ? selectedTask : null);
+    if (!targetTask) return;
+
+    const rawIds = Array.isArray(testerIds)
+      ? testerIds.map(String)
+      : String(testerIds || '').split(',').map(s => s.trim()).filter(Boolean);
+    const assignedTesters = users.filter(u => rawIds.includes(String(u.id)) || rawIds.includes(u.email));
+    
+    const resolvedTesterIds = assignedTesters.length > 0 ? assignedTesters.map(u => u.id) : (rawIds.length > 0 ? rawIds : []);
+    const testerNames = assignedTesters.length > 0 
+      ? assignedTesters.map(u => u.name).join(', ') 
+      : 'Assigned Tester';
+    const testerEmails = assignedTesters.map(u => u.email).filter(Boolean).join(', ');
+
+    const newComments = testNotes ? [
+      ...(targetTask.comments || []),
+      {
+        id: `CM-${Date.now()}`,
+        author: currentUser?.name || 'Developer',
+        avatar: currentUser?.avatar || '',
+        text: `🚀 Sent to QA Testing. Assigned to tester(s): ${testerNames}. Note: ${testNotes}`,
+        time: 'Just now'
+      }
+    ] : (targetTask.comments || []);
+
+    await updateTask(taskId, {
+      status: 'In Review',
+      testingStatus: 'Pending Testing',
+      testerId: resolvedTesterIds.join(','),
+      testerIds: resolvedTesterIds,
+      testerName: testerNames,
+      testerEmail: testerEmails,
+      comments: newComments
+    });
+
+    assignedTesters.forEach(tUser => {
+      addNotification({
+        userId: tUser.id,
+        userEmail: tUser.email,
+        title: 'Task Assigned for Testing',
+        message: `${currentUser?.name || 'Developer'} sent task ${targetTask.id} (${targetTask.title}) to you for QA testing.`,
+        linkTaskId: taskId,
+        reporterName: currentUser?.name
+      });
+    });
+  };
+
+  const reassignTaskToDeveloper = async (taskId, developerIds, fixNotes = '', issueId = null) => {
+    const rawIds = Array.isArray(developerIds)
+      ? developerIds.map(String)
+      : String(developerIds || '').split(',').map(s => s.trim()).filter(Boolean);
+    const assignedDevs = users.filter(u => rawIds.includes(String(u.id)) || rawIds.includes(u.email));
+    if (assignedDevs.length === 0) return;
+
+    const devNames = assignedDevs.map(u => u.name).join(', ');
+    const devIdsStr = assignedDevs.map(u => u.id).join(',');
+    const firstAvatar = assignedDevs[0]?.avatar || '';
+
+    const targetTask = taskId ? (tasks.find(t => String(t.id) === String(taskId)) || (selectedTask?.id === taskId ? selectedTask : null)) : null;
+
+    if (targetTask) {
+      const newComments = [
+        ...(targetTask.comments || []),
+        {
+          id: `CM-${Date.now()}`,
+          author: currentUser?.name || 'Manager',
+          avatar: currentUser?.avatar || '',
+          text: `⚠️ Reassigned for fix to ${devNames}${issueId ? ` (Bug: ${issueId})` : ''}. Notes: ${fixNotes || 'Please fix the defect and re-submit for testing.'}`,
+          time: 'Just now'
+        }
+      ];
+
+      await updateTask(targetTask.id, {
+        assigneeId: devIdsStr,
+        assigneeIds: assignedDevs.map(u => u.id),
+        assigneeName: devNames,
+        assigneeAvatar: firstAvatar,
+        status: 'In Progress',
+        testingStatus: 'Failed',
+        hasIssue: true,
+        comments: newComments
+      });
+    }
+
+    const effectiveIssueId = issueId || targetTask?.activeBugId;
+    if (effectiveIssueId) {
+      await updateIssue(effectiveIssueId, {
+        assigneeId: devIdsStr,
+        assigneeIds: assignedDevs.map(u => u.id),
+        assigneeName: devNames,
+        assigneeAvatar: firstAvatar,
+        state: 'In Progress'
+      });
+    }
+
+    assignedDevs.forEach(devUser => {
+      addNotification({
+        userId: devUser.id,
+        userEmail: devUser.email,
+        title: 'Task Reassigned for Fix',
+        message: `${currentUser?.name || 'Manager'} reassigned ${targetTask ? `task ${targetTask.id}` : ''}${issueId ? ` issue ${issueId}` : ''} to you to fix defect.`,
+        linkTaskId: taskId || undefined,
+        reporterName: currentUser?.name
+      });
+    });
   };
 
   const createSprint = async (sprintData) => {
@@ -2125,9 +2275,9 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentUser, sprints, tasks]);
 
-  const selectedTask = userTasks.find(t => t.id === selectedTaskId) || userTasks[0] || null;
-  const selectedIssue = userIssues.find(i => i.id === selectedIssueId) || userIssues[0] || null;
-  const selectedSprint = userSprints.find(s => s.id === selectedSprintId) || userSprints[0] || null;
+  const selectedTask = (selectedTaskId && tasks.find(t => t.id === selectedTaskId)) || userTasks.find(t => t.id === selectedTaskId) || userTasks[0] || null;
+  const selectedIssue = (selectedIssueId && issues.find(i => i.id === selectedIssueId)) || userIssues.find(i => i.id === selectedIssueId) || userIssues[0] || null;
+  const selectedSprint = (selectedSprintId && sprints.find(s => s.id === selectedSprintId)) || userSprints.find(s => s.id === selectedSprintId) || userSprints[0] || null;
 
   const fetchUsers = async () => {
     const activeUrl = apiUrl || API_BASE_URL;
@@ -2194,6 +2344,11 @@ export const AppProvider = ({ children }) => {
         isCreateSprintModalOpen,
         isCreateProjectModalOpen,
         isReportBugModalOpen,
+        isSendToTestingModalOpen,
+        setIsSendToTestingModalOpen,
+        testingTargetTask,
+        setTestingTargetTask,
+        openSendToTestingModal,
         isOnboardingOpen,
         searchQuery,
         sidebarCollapsed,
@@ -2241,10 +2396,13 @@ export const AppProvider = ({ children }) => {
         createTask,
         updateTask,
         updateTaskStatus,
+        sendTaskToTesting,
+        reassignTaskToDeveloper,
         deleteTask,
         openEditTaskModal,
         openEditProjectModal,
         createIssue,
+        updateIssue,
         updateIssueState,
         createSprint,
         createProject,

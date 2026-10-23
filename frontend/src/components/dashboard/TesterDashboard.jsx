@@ -20,17 +20,21 @@ import {
 export const TesterDashboard = () => {
   const {
     currentUser,
+    currentRole,
+    isUserAdmin,
     tasks,
     issues,
     updateTaskStatus,
     updateTask,
+    updateIssueState,
     setIsReportBugModalOpen,
     navigateTo,
     setIsTaskDrawerOpen,
     setSelectedTaskId,
     currentProject,
     projects = [],
-    canUserManageProjects
+    canUserManageProjects,
+    openSendToTestingModal
   } = useApp();
 
   const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
@@ -38,17 +42,49 @@ export const TesterDashboard = () => {
 
   const [testingFilter, setTestingFilter] = useState('ALL'); // ALL | Pending Testing | In Testing | Passed | Failed
 
+  const isAdminOrManager = (isUserAdmin && isUserAdmin()) || 
+    currentRole === 'ADMIN' || 
+    currentRole === 'MANAGER' || 
+    currentUser?.role === 'ADMIN' || 
+    currentUser?.role === 1 || 
+    currentUser?.role === 2;
+
   // Filter tasks strictly by currentProject
   const projectTasks = !currentProject ? [] : tasks.filter(t => t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id));
   const projectIssues = !currentProject ? [] : issues.filter(i => i.projectId === currentProject?.id || String(i.projectId) === String(currentProject?.id));
 
-  // Testing tasks queue
-  const testingTasks = projectTasks.filter(t => t.status === 'In Review' || t.status === 'Completed' || t.testingStatus !== 'Passed');
+  // Testing tasks queue: only tasks that are in review or have testing workflow status
+  const candidateTestingTasks = projectTasks.filter(t => 
+    t.status === 'In Review' || 
+    t.testingStatus === 'In Testing' || 
+    t.testingStatus === 'Pending Testing' || 
+    t.testingStatus === 'Failed' ||
+    (t.status === 'Completed' && t.testingStatus === 'Passed')
+  );
+
+  // If Admin/Manager: see all tasks in testing process across the workspace.
+  // If Tester: see only tasks assigned to this specific tester (or unassigned tasks available for testing)
+  const testingTasks = candidateTestingTasks.filter(t => {
+    if (isAdminOrManager) return true;
+    const myId = currentUser?.id ? String(currentUser.id) : '';
+    const myEmail = currentUser?.email ? currentUser.email.toLowerCase() : '';
+    const myName = currentUser?.name ? currentUser.name.toLowerCase() : '';
+
+    const assignedTesterIds = Array.isArray(t.testerIds)
+      ? t.testerIds.map(String)
+      : (t.testerId ? String(t.testerId).split(',').map(s => s.trim()) : []);
+
+    const isAssignedToMe = (myId && assignedTesterIds.includes(myId)) ||
+      (myEmail && t.testerEmail && t.testerEmail.toLowerCase().includes(myEmail)) ||
+      (myName && t.testerName && t.testerName.toLowerCase().includes(myName));
+
+    return isAssignedToMe || (!t.testerId && !t.testerEmail && !t.testerName);
+  });
   
-  const pendingTesting = projectTasks.filter(t => t.testingStatus === 'Pending Testing' || (t.status === 'In Review' && t.testingStatus !== 'Passed'));
-  const inTesting = projectTasks.filter(t => t.testingStatus === 'In Testing');
-  const passedTesting = projectTasks.filter(t => t.testingStatus === 'Passed');
-  const failedTesting = projectTasks.filter(t => t.testingStatus === 'Failed');
+  const pendingTesting = testingTasks.filter(t => t.testingStatus === 'Pending Testing' || (t.status === 'In Review' && t.testingStatus !== 'Passed'));
+  const inTesting = testingTasks.filter(t => t.testingStatus === 'In Testing');
+  const passedTesting = testingTasks.filter(t => t.testingStatus === 'Passed');
+  const failedTesting = testingTasks.filter(t => t.testingStatus === 'Failed');
   const bugsReportedCount = projectIssues.length;
 
   const filteredTasks = testingFilter === 'ALL'
@@ -56,9 +92,18 @@ export const TesterDashboard = () => {
     : testingTasks.filter(t => t.testingStatus === testingFilter);
 
   const handleStatusChange = (taskId, newTestingStatus) => {
-    updateTask(taskId, { testingStatus: newTestingStatus });
+    updateTask(taskId, {
+      testingStatus: newTestingStatus,
+      hasIssue: newTestingStatus === 'Failed',
+      status: newTestingStatus === 'Passed' ? 'Completed' : (newTestingStatus === 'Failed' ? 'In Progress' : 'In Review')
+    });
     if (newTestingStatus === 'Passed') {
       updateTaskStatus(taskId, 'Completed');
+      // If linked issues exist, mark them Done
+      const linked = issues.filter(i => String(i.linkedTaskId) === String(taskId));
+      linked.forEach(i => {
+        if (updateIssueState) updateIssueState(i.id, 'Done');
+      });
     }
   };
 
@@ -184,6 +229,7 @@ export const TesterDashboard = () => {
                 <th className="p-3">Project & Sprint</th>
                 <th className="p-3">Dev Status</th>
                 <th className="p-3">Testing Status</th>
+                <th className="p-3">Assigned Tester</th>
                 <th className="p-3">Priority</th>
                 <th className="p-3 text-right">QA Action</th>
               </tr>
@@ -239,20 +285,41 @@ export const TesterDashboard = () => {
                       {task.testingStatus}
                     </span>
                   </td>
+                  <td className="p-3">
+                    {task.testerName ? (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        <UserCheck className="w-3 h-3 text-purple-600" />
+                        <span>{task.testerName}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic">Unassigned</span>
+                    )}
+                    {isAdminOrManager && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSendToTestingModal(task);
+                        }}
+                        className="ml-2 text-[10px] text-purple-600 hover:text-purple-800 font-semibold underline cursor-pointer"
+                      >
+                        {task.testerId ? 'Change' : 'Assign'}
+                      </button>
+                    )}
+                  </td>
                   <td className="p-3 font-semibold text-slate-700">{task.priority}</td>
                   <td className="p-3 text-right space-x-1.5" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => handleStatusChange(task.id, 'Passed')}
-                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded text-[10px] transition-colors"
+                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold rounded text-[10px] transition-colors cursor-pointer"
                     >
                       Pass QA
                     </button>
                     <button
                       onClick={() => {
-                        handleStatusChange(task.id, 'Failed');
+                        setSelectedTaskId(task.id);
                         setIsReportBugModalOpen(true);
                       }}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-semibold rounded text-[10px] transition-colors"
+                      className="px-2 py-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold rounded text-[10px] transition-colors cursor-pointer"
                     >
                       Fail & Report
                     </button>

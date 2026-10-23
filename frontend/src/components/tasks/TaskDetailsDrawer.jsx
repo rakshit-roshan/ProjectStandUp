@@ -17,7 +17,11 @@ import {
   Bug,
   Shield,
   FileText,
-  Eye
+  Eye,
+  ChevronDown,
+  TestTube2,
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 
 export const TaskDetailsDrawer = () => {
@@ -36,11 +40,55 @@ export const TaskDetailsDrawer = () => {
     currentProject,
     setIsReportBugModalOpen,
     getProjectMembers,
-    isViewer
+    isViewer,
+    openSendToTestingModal,
+    getUserRoleName
   } = useApp();
+
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
 
   const viewerMode = isViewer ? isViewer() : false;
   const teamMembers = getProjectMembers(currentProject);
+  const allAvailableUsers = [
+    ...teamMembers,
+    ...users.filter(u => !teamMembers.some(tm => String(tm.id) === String(u.id)))
+  ];
+
+  const getSelectedAssigneeIds = () => {
+    if (selectedTask?.assigneeIds && Array.isArray(selectedTask.assigneeIds)) {
+      return selectedTask.assigneeIds.map(String);
+    }
+    if (selectedTask?.assigneeId) {
+      return String(selectedTask.assigneeId).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const assignedUserIds = getSelectedAssigneeIds();
+  const assignedUsersList = allAvailableUsers.filter(u => assignedUserIds.includes(String(u.id)));
+
+  const handleToggleAssignee = (uId) => {
+    const sId = String(uId);
+    const currentIds = getSelectedAssigneeIds();
+    const newIds = currentIds.includes(sId)
+      ? currentIds.filter(id => id !== sId)
+      : [...currentIds, sId];
+
+    const assignedUsers = allAvailableUsers.filter(u => newIds.includes(String(u.id)));
+    const assigneeIdsStr = assignedUsers.map(u => u.id).join(',');
+    const assigneeNamesStr = assignedUsers.length > 0 
+      ? assignedUsers.map(u => u.name).join(', ') 
+      : 'Unassigned';
+
+    updateTask(selectedTask.id, {
+      assigneeId: assigneeIdsStr,
+      assigneeIds: assignedUsers.map(u => u.id),
+      assigneeName: assigneeNamesStr,
+      assigneeAvatar: assignedUsers[0]?.avatar || ''
+    });
+  };
 
   if (!isTaskDrawerOpen || !selectedTask) return null;
 
@@ -95,13 +143,15 @@ export const TaskDetailsDrawer = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            {currentRole === 'DEVELOPER' && selectedTask.status === 'In Progress' && (
+            {!viewerMode && selectedTask.status !== 'Completed' && (
               <button
-                onClick={() => updateTaskStatus(selectedTask.id, 'In Review')}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-2xs"
+                type="button"
+                onClick={() => openSendToTestingModal(selectedTask)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                title="Send Task to QA Testing"
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Submit for Review</span>
+                <TestTube2 className="w-3.5 h-3.5" />
+                <span>Send to Testing</span>
               </button>
             )}
 
@@ -151,6 +201,71 @@ export const TaskDetailsDrawer = () => {
 
         {/* Drawer Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* QA Status Alert Banners (Failed vs Passed vs In Review) */}
+          {(selectedTask.testingStatus === 'Failed' || (selectedTask.hasIssue && selectedTask.testingStatus !== 'Passed' && selectedTask.status !== 'Completed')) ? (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between text-xs text-red-900 animate-in fade-in duration-150">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Bug className="w-4 h-4 text-red-600" />
+                </div>
+                <div>
+                  <span className="font-bold block">QA Defect Reported (Testing Failed)</span>
+                  <span className="text-[11px] text-red-700">This task was rejected by QA. Assign developer(s) below to fix the defect.</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const linkedIssue = (issues || []).find(i => String(i.linkedTaskId) === String(selectedTask.id));
+                  if (linkedIssue) {
+                    setSelectedIssueId(linkedIssue.id);
+                  } else if (selectedTask.activeBugId) {
+                    setSelectedIssueId(selectedTask.activeBugId);
+                  }
+                  setIsTaskDrawerOpen(false);
+                  setIsIssueDrawerOpen(true);
+                }}
+                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold shrink-0 cursor-pointer transition-colors shadow-2xs"
+              >
+                Inspect Defect →
+              </button>
+            </div>
+          ) : selectedTask.testingStatus === 'Passed' ? (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-900 animate-in fade-in duration-150">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <span className="font-bold block">QA Testing Passed & Verified</span>
+                  <span className="text-[11px] text-emerald-700">
+                    This task successfully passed QA testing and is verified{selectedTask.testerName ? ` by ${selectedTask.testerName}` : ''}.
+                  </span>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-600 text-white rounded text-[10px] font-bold shrink-0 shadow-2xs">
+                Passed ✓
+              </span>
+            </div>
+          ) : (selectedTask.testingStatus === 'Pending Testing' || (selectedTask.status === 'In Review' && selectedTask.testingStatus !== 'Failed')) ? (
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between text-xs text-purple-900 animate-in fade-in duration-150">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                  <TestTube2 className="w-4 h-4 text-purple-600" />
+                </div>
+                <div>
+                  <span className="font-bold block">Awaiting QA Testing & Verification</span>
+                  <span className="text-[11px] text-purple-700">
+                    Task is in the QA testing queue{selectedTask.testerName ? ` (Assigned Tester: ${selectedTask.testerName})` : ''}.
+                  </span>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-purple-100 text-purple-800 border border-purple-200 rounded text-[10px] font-bold shrink-0">
+                In QA Review
+              </span>
+            </div>
+          ) : null}
+
           {/* Title & Description */}
           <div className="space-y-2">
             <input
@@ -179,7 +294,7 @@ export const TaskDetailsDrawer = () => {
                 disabled={viewerMode}
                 value={selectedTask.status}
                 onChange={(e) => updateTaskStatus(selectedTask.id, e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed cursor-pointer"
               >
                 <option value="Backlog">Backlog</option>
                 <option value="In Progress">In Progress</option>
@@ -195,7 +310,7 @@ export const TaskDetailsDrawer = () => {
                 disabled={viewerMode}
                 value={selectedTask.priority}
                 onChange={(e) => updateTask(selectedTask.id, { priority: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed cursor-pointer"
               >
                 <option value="Critical">Critical</option>
                 <option value="High">High</option>
@@ -204,38 +319,99 @@ export const TaskDetailsDrawer = () => {
               </select>
             </div>
 
-            {/* Assignee Selector */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Assignee</label>
-              <select
-                disabled={viewerMode}
-                value={selectedTask.assigneeId || ''}
-                onChange={(e) => {
-                  const targetId = e.target.value;
-                  if (!targetId) {
-                    updateTask(selectedTask.id, {
-                      assigneeId: '',
-                      assigneeName: 'Unassigned',
-                      assigneeAvatar: ''
-                    });
-                  } else {
-                    const u = users.find(usr => String(usr.id) === String(targetId));
-                    if (u) {
-                      updateTask(selectedTask.id, {
-                        assigneeId: u.id,
-                        assigneeName: u.name,
-                        assigneeAvatar: u.avatar
-                      });
-                    }
-                  }
-                }}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Unassigned</option>
-                {teamMembers.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+            {/* Assignees Multi-Select Dropdown with Checkboxes */}
+            <div className="relative">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Assignees ({assignedUserIds.length})
+              </label>
+
+              {viewerMode ? (
+                <div className="w-full bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-700 truncate">
+                  {selectedTask.assigneeName || 'Unassigned'}
+                </div>
+              ) : (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
+                    className="w-full bg-white border border-slate-200 hover:border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none flex items-center justify-between transition-colors cursor-pointer text-left shadow-2xs"
+                  >
+                    <div className="flex items-center space-x-1.5 truncate flex-1 min-w-0">
+                      {assignedUsersList.length === 0 ? (
+                        <span className="text-slate-400">Unassigned</span>
+                      ) : (
+                        <div className="flex items-center space-x-1 truncate">
+                          <div className="flex -space-x-1 shrink-0">
+                            {assignedUsersList.slice(0, 2).map(u => (
+                              u.avatar ? (
+                                <img key={u.id} src={u.avatar} alt={u.name} className="w-4 h-4 rounded-full object-cover ring-1 ring-white" />
+                              ) : (
+                                <div key={u.id} className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[7px] flex items-center justify-center ring-1 ring-white">
+                                  {u.name?.charAt(0).toUpperCase()}
+                                </div>
+                              )
+                            ))}
+                          </div>
+                          <span className="truncate text-slate-800 text-[11px] font-semibold">
+                            {assignedUsersList.map(u => u.name).join(', ')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                  </button>
+
+                  {/* Multi-Select Dropdown Menu with Checkboxes */}
+                  {isAssigneeDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsAssigneeDropdownOpen(false)}
+                      />
+                      <div className="absolute top-full right-0 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-lg shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-100 max-h-60 overflow-y-auto">
+                        <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 mb-1">
+                          <span>Select Assignees</span>
+                          <span className="font-mono text-blue-600 font-bold">{assignedUserIds.length} Selected</span>
+                        </div>
+
+                        {allAvailableUsers.map(u => {
+                          const isAssigned = assignedUserIds.includes(String(u.id));
+                          const roleLabel = getUserRoleName ? getUserRoleName(u) : (u.role || 'Member');
+                          return (
+                            <div
+                              key={u.id}
+                              onClick={() => handleToggleAssignee(u.id)}
+                              className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${
+                                isAssigned ? 'bg-blue-50 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2 min-w-0">
+                                {u.avatar ? (
+                                  <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+                                    {u.name?.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="truncate">
+                                  <div className="truncate text-xs">{u.name}</div>
+                                  <div className="text-[9px] text-slate-400 truncate">{roleLabel}</div>
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={isAssigned}
+                                onChange={() => {}}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0 pointer-events-none"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Story Points */}
@@ -276,7 +452,7 @@ export const TaskDetailsDrawer = () => {
                     projectName: sp?.projectName || selectedTask.projectName
                   });
                 }}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
               >
                 <option value="">-- No Sprint (Backlog) --</option>
                 {((sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)).length > 0
@@ -288,12 +464,39 @@ export const TaskDetailsDrawer = () => {
               </select>
             </div>
 
-            {/* QA Testing Status */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Testing Status</label>
-              <span className="inline-block px-2 py-1 rounded font-bold text-[10px] bg-amber-100 text-amber-800">
-                {selectedTask.testingStatus}
-              </span>
+            {/* QA Testing Status & Assigned Tester */}
+            <div className="col-span-2 sm:col-span-3 pt-1 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">QA Testing Status</label>
+                <div className="flex items-center space-x-2">
+                  <span className={`inline-block px-2 py-0.5 rounded font-bold text-[10px] ${
+                    selectedTask.testingStatus === 'Passed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                    selectedTask.testingStatus === 'Failed' ? 'bg-red-100 text-red-800 border border-red-200' :
+                    selectedTask.testingStatus === 'In Testing' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                    'bg-amber-100 text-amber-800 border border-amber-200'
+                  }`}>
+                    {selectedTask.testingStatus || 'Pending Testing'}
+                  </span>
+                  {selectedTask.testerName ? (
+                    <span className="text-[11px] text-slate-600 font-medium">
+                      Assigned Tester(s): <strong className="text-purple-700 font-bold">{selectedTask.testerName}</strong>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 italic">No tester assigned yet</span>
+                  )}
+                </div>
+              </div>
+
+              {!viewerMode && (
+                <button
+                  type="button"
+                  onClick={() => openSendToTestingModal(selectedTask)}
+                  className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[11px] rounded-lg border border-purple-200 transition-colors flex items-center space-x-1 cursor-pointer shrink-0"
+                >
+                  <TestTube2 className="w-3.5 h-3.5" />
+                  <span>{selectedTask.testerId ? 'Change QA Tester(s)' : 'Assign to QA Tester(s)'}</span>
+                </button>
+              )}
             </div>
           </div>
 

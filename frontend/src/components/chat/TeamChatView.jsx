@@ -839,7 +839,7 @@ export const TeamChatView = () => {
             {groupStep === 2 && (
               <form onSubmit={handleCreateGroup} className="p-6 space-y-4 text-xs">
                 <div className="flex justify-center">
-                  <div className="w-20 h-20 rounded-full bg-[#f0f2f5] border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-100 transition-colors">
+                  <div className="w-20 h-20 rounded-full bg-[#f0f2f5] border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
                     <Camera className="w-8 h-8 text-[#00a884]" />
                   </div>
                 </div>

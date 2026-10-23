@@ -376,9 +376,9 @@ export const UserAccountsView = () => {
                             <button
                               disabled={!isChanged || isSaving}
                               onClick={() => handleSaveRole(usr.id)}
-                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center space-x-1 ${
+                              className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all flex items-center space-x-1 ${
                                 isChanged && !isSaving
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-emerald-600 shadow-xs'
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-emerald-600 shadow-xs cursor-pointer'
                                   : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
                               }`}
                             >
@@ -615,7 +615,7 @@ export const UserAccountsView = () => {
                 type="button"
                 disabled={isDeletingUser}
                 onClick={handleConfirmDeleteUser}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1 cursor-pointer"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{isDeletingUser ? 'Deleting...' : 'Delete Account'}</span>
