@@ -6,7 +6,7 @@ dist/
 
 # Java / Spring Boot Backend
 target/
-.mvn/
+.mvn/wrapper/maven-wrapper.jar
 *.jar
 *.war
 

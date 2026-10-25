@@ -92,16 +92,33 @@ public class TenantDatabaseService {
         // 2. Insert into Master Registration Table (tblOrg_details) via direct JDBC
         insertMasterRegistrationIntoDb(registration);
 
-        // 3. Dynamically create physical database standupflow_db_<companyId> in MariaDB/MySQL
-        createTenantDatabase(databaseName);
+        try {
+            // 3. Dynamically create physical database standupflow_db_<companyId> in MariaDB/MySQL
+            createTenantDatabase(databaseName);
 
-        // 4. Initialize all application table schemas inside the tenant database
-        initializeTenantDatabaseTables(databaseName);
+            // 4. Initialize all application table schemas inside the tenant database
+            initializeTenantDatabaseTables(databaseName);
 
-        // 5. Insert Admin User into tenant database's tblUser_details table
-        insertRootUserIntoTenantDb(databaseName, rootUserId, rootName, rootEmail, password, department, companyId);
+            // 5. Insert Admin User into tenant database's tblUser_details table
+            insertRootUserIntoTenantDb(databaseName, rootUserId, rootName, rootEmail, password, department, companyId);
 
-        return registration;
+            return registration;
+        } catch (Exception e) {
+            // Roll back orphaned master registration and partial database on any error
+            rollbackFailedRegistration(companyId, databaseName);
+            throw e;
+        }
+    }
+
+    private void rollbackFailedRegistration(String companyId, String databaseName) {
+        try (Connection conn = getDirectConnection("standupflow_db");
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DELETE FROM tblOrg_details WHERE company_id = '" + companyId.replace("'", "''") + "'");
+            stmt.executeUpdate("DROP DATABASE IF EXISTS `" + databaseName + "`");
+            System.out.println("[TenantDatabaseService] Rolled back failed registration for companyId: " + companyId);
+        } catch (Exception ex) {
+            System.err.println("[TenantDatabaseService] Rollback note: " + ex.getMessage());
+        }
     }
 
     private void insertMasterRegistrationIntoDb(CompanyRegistration reg) throws Exception {
@@ -279,7 +296,7 @@ public class TenantDatabaseService {
                     "completed_tasks INT, " +
                     "open_issues INT, " +
                     "overdue_tasks INT, " +
-                    "lead VARCHAR(255), " +
+                    "`lead` VARCHAR(255), " +
                     "lead_id VARCHAR(255), " +
                     "color VARCHAR(50), " +
                     "invite_code VARCHAR(255), " +
@@ -444,6 +461,7 @@ public class TenantDatabaseService {
             // Projects
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_emails VARCHAR(2000);",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_ids VARCHAR(2000);",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS `lead` VARCHAR(255);",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS lead_id VARCHAR(255);",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS invite_code VARCHAR(255);",
             // Sprints

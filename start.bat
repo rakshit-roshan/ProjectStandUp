@@ -15,6 +15,16 @@ echo [1/4] Synchronizing global configuration from config.ini...
 powershell -ExecutionPolicy Bypass -File "%ROOT_DIR%sync-config.ps1"
 echo.
 
+:: Ensure Maven wrapper properties exist for backend
+if not exist "%BACKEND_DIR%\.mvn\wrapper" mkdir "%BACKEND_DIR%\.mvn\wrapper"
+if not exist "%BACKEND_DIR%\.mvn\wrapper\maven-wrapper.properties" (
+    echo [INFO] Initializing Maven wrapper properties...
+    (
+        echo distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.6/apache-maven-3.9.6-bin.zip
+        echo wrapperUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.4/maven-wrapper-3.3.4.jar
+    ) > "%BACKEND_DIR%\.mvn\wrapper\maven-wrapper.properties"
+)
+
 :: Determine Maven command (prefer local wrapper, then PATH, then fallback search)
 set "MVN_CMD="
 
@@ -51,6 +61,21 @@ echo.
 
 echo [3/4] Building React/Vite Frontend (bundling fresh changes)...
 cd /d "%FRONTEND_DIR%"
+
+:: Auto-install dependencies if node_modules does not exist
+if not exist "%FRONTEND_DIR%\node_modules" (
+    echo [INFO] Frontend node_modules not found. Running npm install...
+    call npm install
+    if !ERRORLEVEL! neq 0 (
+        echo.
+        echo [ERROR] Frontend npm install failed! Please check npm errors above.
+        pause
+        exit /b 1
+    )
+    echo [Frontend Dependencies Installed]
+    echo.
+)
+
 call npm run build
 if !ERRORLEVEL! neq 0 (
     echo.

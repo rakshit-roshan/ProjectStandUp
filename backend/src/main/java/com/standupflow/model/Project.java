@@ -23,6 +23,7 @@ public class Project {
     private Integer openIssues;
     @Column(name = "overdue_tasks")
     private Integer overdueTasks;
+    @Column(name = "`lead`")
     private String lead;
     @Column(name = "lead_id")
     private String leadId;
