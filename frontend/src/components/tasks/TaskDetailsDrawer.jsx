@@ -42,7 +42,11 @@ export const TaskDetailsDrawer = () => {
     getProjectMembers,
     isViewer,
     openSendToTestingModal,
-    getUserRoleName
+    getUserRoleName,
+    canManageTaskAssignment,
+    canEditTaskScope,
+    canUpdateTaskStatus,
+    canSendTaskToTesting
   } = useApp();
 
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -50,6 +54,11 @@ export const TaskDetailsDrawer = () => {
   const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
 
   const viewerMode = isViewer ? isViewer() : false;
+  const canAssign = canManageTaskAssignment ? canManageTaskAssignment(currentUser) : false;
+  const canEditScope = canEditTaskScope ? canEditTaskScope(currentUser) : false;
+  const canChangeStatus = canUpdateTaskStatus ? canUpdateTaskStatus(selectedTask, currentUser) : false;
+  const canSendTesting = canSendTaskToTesting ? canSendTaskToTesting(selectedTask, currentUser) : false;
+
   const teamMembers = getProjectMembers(currentProject);
   const allAvailableUsers = [
     ...teamMembers,
@@ -143,12 +152,12 @@ export const TaskDetailsDrawer = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            {!viewerMode && selectedTask.status !== 'Completed' && (
+            {canSendTesting && (
               <button
                 type="button"
                 onClick={() => openSendToTestingModal(selectedTask)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-                title="Send Task to QA Testing"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-bold shadow-2xs transition-colors cursor-pointer animate-in fade-in duration-150"
+                title="Send Completed Task to QA Testing"
               >
                 <TestTube2 className="w-3.5 h-3.5" />
                 <span>Send to Testing</span>
@@ -160,7 +169,7 @@ export const TaskDetailsDrawer = () => {
                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                 <span>Viewer (Read-Only)</span>
               </span>
-            ) : (
+            ) : canEditScope ? (
               <>
                 <button
                   onClick={() => {
@@ -188,6 +197,11 @@ export const TaskDetailsDrawer = () => {
                   <span>Delete</span>
                 </button>
               </>
+            ) : (
+              <span className="flex items-center space-x-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded text-xs font-semibold border border-slate-200">
+                <Shield className="w-3.5 h-3.5 text-slate-400" />
+                <span>Contributor Access</span>
+              </span>
             )}
 
             <button
@@ -266,68 +280,143 @@ export const TaskDetailsDrawer = () => {
             </div>
           ) : null}
 
+          {/* Completed Task Hand-off Alert for Assigner */}
+          {selectedTask.status === 'Completed' && selectedTask.testingStatus !== 'Passed' && (
+            canSendTesting ? (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between text-xs text-purple-900 animate-in fade-in duration-150">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                    <TestTube2 className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <span className="font-bold block">Development Complete — Ready for QA Verification</span>
+                    <span className="text-[11px] text-purple-700">Developer completed work. Click to choose QA tester(s) and route to testing.</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openSendToTestingModal(selectedTask)}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-bold shrink-0 cursor-pointer transition-colors shadow-2xs"
+                >
+                  Send to Testing →
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-900 animate-in fade-in duration-150">
+                <div className="flex items-center space-x-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Task Completed by Developer</span>
+                    <span className="text-[11px] text-emerald-700">Awaiting assigner or manager review to route to QA testing.</span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px]">
+                  Ready for QA Handoff
+                </span>
+              </div>
+            )
+          )}
+
           {/* Title & Description */}
           <div className="space-y-2">
-            <input
-              type="text"
-              disabled={viewerMode}
-              value={selectedTask.title}
-              onChange={(e) => updateTask(selectedTask.id, { title: e.target.value })}
-              className="w-full text-lg font-bold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none pb-1 transition-all disabled:hover:border-transparent disabled:cursor-not-allowed"
-            />
-            <textarea
-              disabled={viewerMode}
-              value={selectedTask.description}
-              onChange={(e) => updateTask(selectedTask.id, { description: e.target.value })}
-              placeholder="Add description..."
-              rows={3}
-              className="w-full text-xs text-slate-700 border border-slate-200 rounded-md p-2.5 outline-none focus:border-blue-500 disabled:bg-slate-50 disabled:cursor-not-allowed"
-            />
+            {canEditScope ? (
+              <>
+                <input
+                  type="text"
+                  value={selectedTask.title}
+                  onChange={(e) => updateTask(selectedTask.id, { title: e.target.value })}
+                  className="w-full text-lg font-bold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none pb-1 transition-all"
+                />
+                <textarea
+                  value={selectedTask.description}
+                  onChange={(e) => updateTask(selectedTask.id, { description: e.target.value })}
+                  placeholder="Add description..."
+                  rows={3}
+                  className="w-full text-xs text-slate-700 border border-slate-200 rounded-md p-2.5 outline-none focus:border-blue-500"
+                />
+              </>
+            ) : (
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-slate-900 leading-snug">{selectedTask.title}</h2>
+                <div className="text-xs text-slate-700 bg-slate-50 p-3 rounded-md border border-slate-200/80 whitespace-pre-wrap leading-relaxed">
+                  {selectedTask.description || <span className="text-slate-400 italic">No description provided for this task.</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Key Properties Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs">
-            {/* Status Selector */}
+            {/* Status Selector (Editable by assigned contributor or manager) */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Status</label>
-              <select
-                disabled={viewerMode}
-                value={selectedTask.status}
-                onChange={(e) => updateTaskStatus(selectedTask.id, e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <option value="Backlog">Backlog</option>
-                <option value="In Progress">In Progress</option>
-                <option value="In Review">In Review</option>
-                <option value="Completed">Completed</option>
-              </select>
+              {canChangeStatus ? (
+                <select
+                  value={selectedTask.status}
+                  onChange={(e) => updateTaskStatus(selectedTask.id, e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:border-blue-500 shadow-2xs"
+                >
+                  <option value="Backlog">Backlog</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="In Review">In Review</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800">
+                  {selectedTask.status}
+                </div>
+              )}
             </div>
 
-            {/* Priority Selector */}
+            {/* Priority Selector (Editable by Manager/Editor) */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Priority</label>
-              <select
-                disabled={viewerMode}
-                value={selectedTask.priority}
-                onChange={(e) => updateTask(selectedTask.id, { priority: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <option value="Critical">Critical</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
+              {canEditScope ? (
+                <select
+                  value={selectedTask.priority}
+                  onChange={(e) => updateTask(selectedTask.id, { priority: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:border-blue-500"
+                >
+                  <option value="Critical">Critical</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800">
+                  {selectedTask.priority}
+                </div>
+              )}
             </div>
 
-            {/* Assignees Multi-Select Dropdown with Checkboxes */}
+            {/* Assignees (Editable ONLY by Admin / Manager / Editor) */}
             <div className="relative">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 Assignees ({assignedUserIds.length})
               </label>
 
-              {viewerMode ? (
-                <div className="w-full bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-700 truncate">
-                  {selectedTask.assigneeName || 'Unassigned'}
+              {!canAssign ? (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 min-h-[28px] flex items-center">
+                  {assignedUsersList.length === 0 ? (
+                    <span className="text-slate-400 italic text-[11px]">Unassigned</span>
+                  ) : (
+                    <div className="flex items-center space-x-1 truncate">
+                      <div className="flex -space-x-1 shrink-0">
+                        {assignedUsersList.slice(0, 2).map(u => (
+                          u.avatar ? (
+                            <img key={u.id} src={u.avatar} alt={u.name} className="w-4 h-4 rounded-full object-cover ring-1 ring-white" />
+                          ) : (
+                            <div key={u.id} className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[7px] flex items-center justify-center ring-1 ring-white">
+                              {u.name?.charAt(0).toUpperCase()}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                      <span className="truncate text-slate-800 text-[11px] font-semibold">
+                        {assignedUsersList.map(u => u.name).join(', ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="relative">
@@ -417,51 +506,68 @@ export const TaskDetailsDrawer = () => {
             {/* Story Points */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Story Points</label>
-              <input
-                type="number"
-                disabled={viewerMode}
-                value={selectedTask.storyPoints}
-                onChange={(e) => updateTask(selectedTask.id, { storyPoints: parseInt(e.target.value) || 0 })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-              />
+              {canEditScope ? (
+                <input
+                  type="number"
+                  value={selectedTask.storyPoints}
+                  onChange={(e) => updateTask(selectedTask.id, { storyPoints: parseInt(e.target.value) || 0 })}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-blue-500"
+                />
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800">
+                  {selectedTask.storyPoints} pts
+                </div>
+              )}
             </div>
 
             {/* Due Date */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Due Date</label>
-              <input
-                type="date"
-                value={selectedTask.dueDate}
-                onChange={(e) => updateTask(selectedTask.id, { dueDate: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800 outline-none"
-              />
+              {canEditScope ? (
+                <input
+                  type="date"
+                  value={selectedTask.dueDate}
+                  onChange={(e) => updateTask(selectedTask.id, { dueDate: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800 outline-none focus:border-blue-500"
+                />
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800">
+                  {selectedTask.dueDate || '—'}
+                </div>
+              )}
             </div>
 
-            {/* Sprint Selector */}
+            {/* Target Sprint */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Target Sprint</label>
-              <select
-                value={selectedTask.sprintId || ''}
-                onChange={(e) => {
-                  const spId = e.target.value;
-                  const sp = sprints.find(s => String(s.id) === String(spId));
-                  updateTask(selectedTask.id, {
-                    sprintId: spId,
-                    sprintName: sp ? sp.name : '',
-                    projectId: sp?.projectId || selectedTask.projectId,
-                    projectName: sp?.projectName || selectedTask.projectName
-                  });
-                }}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
-              >
-                <option value="">-- No Sprint (Backlog) --</option>
-                {((sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)).length > 0
-                  ? (sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id))
-                  : (sprints || [])
-                ).map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              {canEditScope ? (
+                <select
+                  value={selectedTask.sprintId || ''}
+                  onChange={(e) => {
+                    const spId = e.target.value;
+                    const sp = sprints.find(s => String(s.id) === String(spId));
+                    updateTask(selectedTask.id, {
+                      sprintId: spId,
+                      sprintName: sp ? sp.name : '',
+                      projectId: sp?.projectId || selectedTask.projectId,
+                      projectName: sp?.projectName || selectedTask.projectName
+                    });
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:border-blue-500"
+                >
+                  <option value="">-- No Sprint (Backlog) --</option>
+                  {((sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)).length > 0
+                    ? (sprints || []).filter(s => !currentProject || !s.projectId || s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id))
+                    : (sprints || [])
+                  ).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 truncate">
+                  {selectedTask.sprintName || 'No Sprint (Backlog)'}
+                </div>
+              )}
             </div>
 
             {/* QA Testing Status & Assigned Tester */}
@@ -487,7 +593,7 @@ export const TaskDetailsDrawer = () => {
                 </div>
               </div>
 
-              {!viewerMode && (
+              {(canAssign || canSendTesting) && (
                 <button
                   type="button"
                   onClick={() => openSendToTestingModal(selectedTask)}

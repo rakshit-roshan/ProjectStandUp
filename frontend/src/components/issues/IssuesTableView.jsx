@@ -23,8 +23,12 @@ export const IssuesTableView = () => {
     setSelectedIssueId,
     setIsIssueDrawerOpen,
     users,
-    currentProject
+    currentProject,
+    currentUser,
+    canManageTaskAssignment
   } = useApp();
+
+  const canReassign = canManageTaskAssignment ? canManageTaskAssignment(currentUser) : false;
 
   const [stateFilter, setStateFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
@@ -132,18 +136,16 @@ export const IssuesTableView = () => {
                       </div>
                     </td>
                     <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                        issue.state === 'Done' ? 'bg-emerald-100 text-emerald-800' :
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${issue.state === 'Done' ? 'bg-emerald-100 text-emerald-800' :
                         issue.state === 'In Progress' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
-                      }`}>
+                        }`}>
                         {issue.state}
                       </span>
                     </td>
                     <td className="p-3">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        issue.priority === 'Critical' ? 'bg-red-600 text-white' :
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${issue.priority === 'Critical' ? 'bg-red-600 text-white' :
                         issue.priority === 'High' ? 'bg-amber-100 text-amber-800' : 'text-slate-700'
-                      }`}>
+                        }`}>
                         {issue.priority}
                       </span>
                     </td>
@@ -160,18 +162,20 @@ export const IssuesTableView = () => {
                     <td className="p-3 text-center font-mono">{issue.commentsCount || 0}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end space-x-1.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedIssueId(issue.id);
-                            setIsIssueDrawerOpen(true);
-                          }}
-                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
-                          title="Reassign Defect & Task to Developer"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>Reassign</span>
-                        </button>
+                        {canReassign && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedIssueId(issue.id);
+                              setIsIssueDrawerOpen(true);
+                            }}
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Reassign Defect & Task to Developer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Reassign</span>
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

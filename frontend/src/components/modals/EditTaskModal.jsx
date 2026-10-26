@@ -15,8 +15,11 @@ export const EditTaskModal = () => {
     users,
     currentProject,
     getProjectMembers,
-    getUserRoleName
+    getUserRoleName,
+    canEditTaskScope
   } = useApp();
+
+  const canEdit = canEditTaskScope ? canEditTaskScope(currentUser) : false;
 
   const teamMembers = getProjectMembers(currentProject);
 
@@ -60,7 +63,7 @@ export const EditTaskModal = () => {
     }
   }, [editingTask]);
 
-  if (!isEditTaskModalOpen || !editingTask) return null;
+  if (!isEditTaskModalOpen || !editingTask || !canEdit) return null;
 
   const toggleAssignee = (uId) => {
     const sId = String(uId);

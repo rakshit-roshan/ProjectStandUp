@@ -54,13 +54,14 @@ export const ManagerDashboard = () => {
     canUserManageProjects,
     hasPermission,
     setSelectedTaskId,
-    setIsTaskDrawerOpen
+    setIsTaskDrawerOpen,
+    canEditTaskScope
   } = useApp();
 
   const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
   const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
-  const canManageTasks = (isUserAdmin ? isUserAdmin() : false) || (hasPermission ? hasPermission('header_create_actions') : false);
+  const canManageTasks = canEditTaskScope ? canEditTaskScope(currentUser) : false;
 
   const [isProTipVisible, setIsProTipVisible] = useState(true);
   const [expandedSprintIds, setExpandedSprintIds] = useState(() =>
@@ -584,7 +585,7 @@ export const ManagerDashboard = () => {
                           </span>
                         </td>
                         <td className="py-3 px-3 text-right">
-                          {canManageTasks && (
+                          {canManageTasks ? (
                             <div className="flex items-center justify-end space-x-1">
                               <button
                                 title="Edit / Reassign Task"
@@ -609,6 +610,17 @@ export const ManagerDashboard = () => {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.id);
+                                setIsTaskDrawerOpen(true);
+                              }}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors"
+                            >
+                              Details →
+                            </button>
                           )}
                         </td>
                       </tr>

@@ -37,8 +37,17 @@ export const IssueDetailsDrawer = () => {
     getProjectMembers,
     getUserRoleName,
     navigateTo,
-    currentUser
+    currentUser,
+    canManageTaskAssignment,
+    canSendTaskToTesting
   } = useApp();
+
+  const canManageAssignment = canManageTaskAssignment ? canManageTaskAssignment(currentUser) : false;
+  const isAssignedToIssue = selectedIssue && currentUser && (
+    String(selectedIssue.assigneeId || '').split(',').map(s => s.trim()).includes(String(currentUser.id)) ||
+    (selectedIssue.assigneeName && String(selectedIssue.assigneeName).toLowerCase() === String(currentUser.name || currentUser.fullname || '').toLowerCase())
+  );
+  const canChangeState = canManageAssignment || isAssignedToIssue;
 
   const [selectedDevIds, setSelectedDevIds] = useState([]);
   const [isDevDropdownOpen, setIsDevDropdownOpen] = useState(false);
@@ -203,7 +212,7 @@ export const IssueDetailsDrawer = () => {
                   Currently assigned to <span className="font-semibold">{selectedIssue.assigneeName}</span>. Once code fixes are committed, send it back for QA testing.
                 </span>
               </div>
-              {linkedTask && (
+              {linkedTask && canSendTaskToTesting && canSendTaskToTesting(linkedTask, currentUser) && (
                 <button
                   type="button"
                   onClick={() => openSendToTestingModal(linkedTask)}
@@ -251,24 +260,96 @@ export const IssueDetailsDrawer = () => {
           {/* State Selector Toolbar */}
           <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
             <span className="font-bold text-slate-700">Lifecycle State:</span>
-            <div className="flex items-center space-x-2">
-              {['Pending', 'In Progress', 'Done'].map(state => (
-                <button
-                  key={state}
-                  onClick={() => updateIssueState(selectedIssue.id, state)}
-                  className={`px-3 py-1 rounded font-semibold transition-all cursor-pointer ${
-                    selectedIssue.state === state
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  {state}
-                </button>
-              ))}
-            </div>
+            {canChangeState ? (
+              <div className="flex items-center space-x-2">
+                {['Pending', 'In Progress', 'Done'].map(state => (
+                  <button
+                    key={state}
+                    onClick={() => updateIssueState(selectedIssue.id, state)}
+                    className={`px-3 py-1 rounded font-semibold transition-all cursor-pointer ${
+                      selectedIssue.state === state
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    {state}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className={`px-3 py-1 rounded font-bold ${
+                selectedIssue.state === 'Done' ? 'bg-emerald-100 text-emerald-800' :
+                selectedIssue.state === 'In Progress' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {selectedIssue.state}
+              </span>
+            )}
           </div>
 
           {/* Reassignment Pipeline Section */}
+          {!canManageAssignment ? (
+            <div className="bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-slate-50 p-4 rounded-xl border border-indigo-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-2xs">
+                    <Wrench className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Assigned Developer for Rework</h3>
+                    <p className="text-[11px] text-slate-500">Only project managers and editors can reassign defect ownership</p>
+                  </div>
+                </div>
+                {selectedIssue.linkedTaskId && (
+                  <span
+                    onClick={() => {
+                      setIsIssueDrawerOpen(false);
+                      navigateTo('task_details', selectedIssue.linkedTaskId);
+                    }}
+                    className="font-mono text-[11px] font-bold text-blue-600 hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>{selectedIssue.linkedTaskId}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </span>
+                )}
+              </div>
+
+              {linkedTask && (
+                <div className="p-3 bg-white rounded-lg border border-indigo-100 flex items-center justify-between text-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono font-bold text-blue-600 text-[11px]">{linkedTask.id}</span>
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                        linkedTask.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                        linkedTask.status === 'In Progress' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {linkedTask.status}
+                      </span>
+                    </div>
+                    <h4 className="font-semibold text-slate-900 text-xs truncate mt-0.5">{linkedTask.title}</h4>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  {selectedIssue.assigneeAvatar ? (
+                    <img src={selectedIssue.assigneeAvatar} alt={selectedIssue.assigneeName} className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[9px] flex items-center justify-center">
+                      {(selectedIssue.assigneeName || 'D').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">{selectedIssue.assigneeName || 'Unassigned Developer'}</div>
+                    <div className="text-[10px] text-slate-500">Defect Assignee</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-semibold border border-slate-200">
+                  Assigned
+                </span>
+              </div>
+            </div>
+          ) : (
           <div className="bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-slate-50 p-4 rounded-xl border border-indigo-200 shadow-2xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -502,6 +583,7 @@ export const IssueDetailsDrawer = () => {
               </button>
             </div>
           </div>
+          )}
 
           {/* Description & Reproduction Steps */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs text-slate-800">

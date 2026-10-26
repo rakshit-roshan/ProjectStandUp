@@ -44,7 +44,10 @@ public class TaskController {
                 : taskRepository.findAll();
 
         boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
-        if (isRootAdmin) {
+        boolean isManagerOrAdmin = isRootAdmin ||
+                "1".equalsIgnoreCase(userRole) || "2".equalsIgnoreCase(userRole) ||
+                "ADMIN".equalsIgnoreCase(userRole) || "MANAGER".equalsIgnoreCase(userRole);
+        if (isManagerOrAdmin) {
             return all;
         }
 
@@ -168,36 +171,54 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TaskItem> updateTask(@PathVariable String id, @RequestBody TaskItem taskDetails) {
+    public ResponseEntity<TaskItem> updateTask(
+            @PathVariable String id,
+            @RequestBody TaskItem taskDetails,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Rootadmin", required = false) String rootAdminStr
+    ) {
         return taskRepository.findById(id).map(task -> {
+            boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
+            boolean isManagerOrAdmin = isRootAdmin || userRole == null ||
+                    "1".equalsIgnoreCase(userRole) || "2".equalsIgnoreCase(userRole) ||
+                    "ADMIN".equalsIgnoreCase(userRole) || "MANAGER".equalsIgnoreCase(userRole);
+
             String oldAssignee = task.getAssigneeId() != null ? task.getAssigneeId() : "";
 
-            if (taskDetails.getTitle() != null) task.setTitle(taskDetails.getTitle());
-            if (taskDetails.getDescription() != null) task.setDescription(taskDetails.getDescription());
-            if (taskDetails.getStatus() != null) task.setStatus(taskDetails.getStatus());
-            if (taskDetails.getPriority() != null) task.setPriority(taskDetails.getPriority());
-            if (taskDetails.getAssigneeId() != null) {
-                task.setAssigneeId(taskDetails.getAssigneeId());
-                if (taskDetails.getAssigneeId().isBlank()) {
-                    task.setAssigneeName("Unassigned");
-                    task.setAssigneeAvatar("");
+            // Scope & Assignee fields can only be modified by privileged Manager/Admin roles
+            if (isManagerOrAdmin) {
+                if (taskDetails.getTitle() != null) task.setTitle(taskDetails.getTitle());
+                if (taskDetails.getDescription() != null) task.setDescription(taskDetails.getDescription());
+                if (taskDetails.getPriority() != null) task.setPriority(taskDetails.getPriority());
+                if (taskDetails.getStoryPoints() != null) task.setStoryPoints(taskDetails.getStoryPoints());
+                if (taskDetails.getSprintId() != null) task.setSprintId(taskDetails.getSprintId());
+                if (taskDetails.getSprintName() != null) task.setSprintName(taskDetails.getSprintName());
+                if (taskDetails.getDueDate() != null) task.setDueDate(taskDetails.getDueDate());
+                if (taskDetails.getStartDate() != null) task.setStartDate(taskDetails.getStartDate());
+                if (taskDetails.getAssigneeId() != null) {
+                    task.setAssigneeId(taskDetails.getAssigneeId());
+                    if (taskDetails.getAssigneeId().isBlank()) {
+                        task.setAssigneeName("Unassigned");
+                        task.setAssigneeAvatar("");
+                    }
                 }
+                if (taskDetails.getAssigneeName() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
+                    task.setAssigneeName(taskDetails.getAssigneeName());
+                }
+                if (taskDetails.getAssigneeAvatar() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
+                    task.setAssigneeAvatar(taskDetails.getAssigneeAvatar());
+                }
+                if (taskDetails.getReporterId() != null) task.setReporterId(taskDetails.getReporterId());
+                if (taskDetails.getReporterName() != null) task.setReporterName(taskDetails.getReporterName());
+                if (taskDetails.getProjectId() != null) task.setProjectId(taskDetails.getProjectId());
+                if (taskDetails.getProjectName() != null) task.setProjectName(taskDetails.getProjectName());
             }
-            if (taskDetails.getAssigneeName() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
-                task.setAssigneeName(taskDetails.getAssigneeName());
-            }
-            if (taskDetails.getAssigneeAvatar() != null && (taskDetails.getAssigneeId() == null || !taskDetails.getAssigneeId().isBlank())) {
-                task.setAssigneeAvatar(taskDetails.getAssigneeAvatar());
-            }
-            if (taskDetails.getReporterId() != null) task.setReporterId(taskDetails.getReporterId());
-            if (taskDetails.getReporterName() != null) task.setReporterName(taskDetails.getReporterName());
-            if (taskDetails.getSprintId() != null) task.setSprintId(taskDetails.getSprintId());
-            if (taskDetails.getSprintName() != null) task.setSprintName(taskDetails.getSprintName());
-            if (taskDetails.getProjectId() != null) task.setProjectId(taskDetails.getProjectId());
-            if (taskDetails.getProjectName() != null) task.setProjectName(taskDetails.getProjectName());
-            if (taskDetails.getStoryPoints() != null) task.setStoryPoints(taskDetails.getStoryPoints());
-            if (taskDetails.getStartDate() != null) task.setStartDate(taskDetails.getStartDate());
-            if (taskDetails.getDueDate() != null) task.setDueDate(taskDetails.getDueDate());
+
+            // Task execution fields (Status, QA testing) are updatable by contributors
+            if (taskDetails.getStatus() != null) task.setStatus(taskDetails.getStatus());
             if (taskDetails.getTestingStatus() != null) task.setTestingStatus(taskDetails.getTestingStatus());
             if (taskDetails.getTesterId() != null) task.setTesterId(taskDetails.getTesterId());
             if (taskDetails.getTesterName() != null) task.setTesterName(taskDetails.getTesterName());
@@ -209,7 +230,7 @@ public class TaskController {
             linkAssigneeToProject(updated);
 
             // Trigger notification if assignee changed or assigned
-            if (taskDetails.getAssigneeId() != null && !taskDetails.getAssigneeId().isBlank() && !taskDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
+            if (isManagerOrAdmin && taskDetails.getAssigneeId() != null && !taskDetails.getAssigneeId().isBlank() && !taskDetails.getAssigneeId().equalsIgnoreCase(oldAssignee)) {
                 createNotificationsForTask(updated, "Task Assigned To You");
             }
 

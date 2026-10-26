@@ -23,8 +23,11 @@ export const BacklogView = () => {
     setIsTaskDrawerOpen,
     currentUser,
     isUserAdmin,
-    isTaskAssignedToUser
+    isTaskAssignedToUser,
+    canEditTaskScope
   } = useApp();
+
+  const canCommitSprint = canEditTaskScope ? canEditTaskScope(currentUser) : false;
 
   const backlogTasks = !currentProject ? [] : tasks.filter(t => t.status === 'Backlog' && (t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id)) && (isUserAdmin() || isTaskAssignedToUser(t, currentUser)));
   const projectSprints = !currentProject ? [] : sprints.filter(s => (s.projectId === currentProject?.id || String(s.projectId) === String(currentProject?.id)) && (isUserAdmin() || tasks.some(t => (t.sprintId === s.id || String(t.sprintId) === String(s.id)) && isTaskAssignedToUser(t, currentUser))));
@@ -64,18 +67,20 @@ export const BacklogView = () => {
             <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               Unassigned Backlog Items ({backlogTasks.length})
             </h2>
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="text-slate-500">Target Sprint:</span>
-              <select
-                value={selectedSprintTarget}
-                onChange={(e) => setSelectedSprintTarget(e.target.value)}
-                className="bg-slate-50 border border-slate-200 font-semibold px-2 py-1 rounded outline-none"
-              >
-                {projectSprints.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
+            {canCommitSprint && (
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-slate-500">Target Sprint:</span>
+                <select
+                  value={selectedSprintTarget}
+                  onChange={(e) => setSelectedSprintTarget(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 font-semibold px-2 py-1 rounded outline-none cursor-pointer"
+                >
+                  {projectSprints.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -107,13 +112,15 @@ export const BacklogView = () => {
                     }`}>
                       {task.priority}
                     </span>
-                    <button
-                      onClick={() => moveTaskToSprint(task.id)}
-                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] rounded flex items-center space-x-1 transition-colors"
-                    >
-                      <span>Move to Sprint</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                    {canCommitSprint && (
+                      <button
+                        onClick={() => moveTaskToSprint(task.id)}
+                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] rounded flex items-center space-x-1 transition-colors cursor-pointer"
+                      >
+                        <span>Move to Sprint</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

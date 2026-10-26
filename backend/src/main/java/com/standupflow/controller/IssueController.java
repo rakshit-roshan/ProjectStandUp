@@ -40,7 +40,9 @@ public class IssueController {
                 ? issueRepository.findByProjectId(projectId.trim())
                 : issueRepository.findAll();
 
-        boolean isAdmin = userId == null || "1".equals(rootAdminStr) || "1".equals(userRole) || "ADMIN".equalsIgnoreCase(userRole) || "ROOT".equalsIgnoreCase(userRole);
+        boolean isAdmin = userId == null || "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr) ||
+                "1".equalsIgnoreCase(userRole) || "2".equalsIgnoreCase(userRole) ||
+                "ADMIN".equalsIgnoreCase(userRole) || "ROOT".equalsIgnoreCase(userRole) || "MANAGER".equalsIgnoreCase(userRole);
         if (isAdmin) {
             return list;
         }

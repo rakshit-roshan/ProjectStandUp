@@ -29,11 +29,11 @@ export const DeveloperDashboard = () => {
     updateTaskStatus,
     navigateTo,
     setIsTaskDrawerOpen,
-    setSelectedTaskId,
     isTaskAssignedToUser,
     projects = [],
     canUserManageProjects,
-    openSendToTestingModal
+    openSendToTestingModal,
+    canSendTaskToTesting
   } = useApp();
 
   const canManageProjects = canUserManageProjects ? canUserManageProjects(currentUser) : false;
@@ -207,12 +207,12 @@ export const DeveloperDashboard = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        openSendToTestingModal(task);
+                        updateTaskStatus(task.id, 'Completed');
                       }}
-                      className="w-full mt-2 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-[11px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs cursor-pointer"
+                      className="w-full mt-2 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-[11px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs cursor-pointer"
                     >
-                      <TestTube2 className="w-3 h-3" />
-                      <span>Send to Testing</span>
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Mark Completed</span>
                     </button>
                   </div>
                 ))}
@@ -305,16 +305,40 @@ export const DeveloperDashboard = () => {
                       </td>
                       <td className="p-3 font-mono">{task.storyPoints}</td>
                       <td className="p-3 text-right">
+                        {task.status === 'Backlog' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTaskStatus(task.id, 'In Progress');
+                            }}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer ml-auto transition-colors"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Start</span>
+                          </button>
+                        )}
                         {task.status === 'In Progress' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTaskStatus(task.id, 'Completed');
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer ml-auto transition-colors"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Complete</span>
+                          </button>
+                        )}
+                        {task.status === 'Completed' && canSendTaskToTesting && canSendTaskToTesting(task, currentUser) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               openSendToTestingModal(task);
                             }}
-                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer ml-auto"
+                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 cursor-pointer ml-auto transition-colors"
                           >
                             <TestTube2 className="w-3 h-3" />
-                            <span>Send to Testing</span>
+                            <span>Send to QA</span>
                           </button>
                         )}
                       </td>

@@ -12,7 +12,8 @@ export const SendToTestingModal = () => {
     users,
     currentProject,
     getProjectMembers,
-    getUserRoleName
+    getUserRoleName,
+    canSendTaskToTesting
   } = useApp();
 
   const [selectedTesterIds, setSelectedTesterIds] = useState([]);
@@ -72,7 +73,8 @@ export const SendToTestingModal = () => {
     }
   }, [testingTargetTask, isSendToTestingModalOpen]);
 
-  if (!isSendToTestingModalOpen || !testingTargetTask) return null;
+  const canSend = canSendTaskToTesting ? canSendTaskToTesting(testingTargetTask, currentUser) : true;
+  if (!isSendToTestingModalOpen || !testingTargetTask || !canSend) return null;
 
   const handleToggleTester = (uId) => {
     const sId = String(uId);

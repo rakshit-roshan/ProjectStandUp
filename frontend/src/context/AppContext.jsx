@@ -1825,6 +1825,48 @@ export const AppProvider = ({ children }) => {
     return roleName.includes('viewer') || roleRaw.includes('viewer') || roleName.includes('read only') || roleRaw.includes('read only');
   };
 
+  // Enterprise RBAC Permission Evaluators
+  const canManageTaskAssignment = (userToLookup = currentUser) => {
+    return isManagerOrEditorOrRoot(userToLookup);
+  };
+
+  const canEditTaskScope = (userToLookup = currentUser) => {
+    return isManagerOrEditorOrRoot(userToLookup);
+  };
+
+  const canUpdateTaskStatus = (task, userToLookup = currentUser) => {
+    if (!task || !userToLookup) return false;
+    if (isViewer(userToLookup)) return false;
+    if (isManagerOrEditorOrRoot(userToLookup)) return true;
+    return isTaskAssignedToUser(task, userToLookup);
+  };
+
+  const canSendTaskToTesting = (task, userToLookup = currentUser) => {
+    if (!task || !userToLookup) return false;
+    if (isViewer(userToLookup)) return false;
+
+    // In Jira enterprise flow, task must be marked Completed (or In Review/Pending Testing)
+    const isReadyForTesting = task.status === 'Completed' || task.status === 'In Review' || task.testingStatus === 'Pending Testing';
+    if (!isReadyForTesting) return false;
+
+    // Must be manager/editor/root OR the assigner (reporter) of the task
+    if (isManagerOrEditorOrRoot(userToLookup)) return true;
+
+    const uId = String(userToLookup.id || '').trim();
+    const uEmail = String(userToLookup.email || userToLookup.emailid || '').toLowerCase().trim();
+    const uName = String(userToLookup.name || userToLookup.fullname || '').toLowerCase().trim();
+
+    const rId = String(task.reporterId || '').trim();
+    const rEmail = String(task.reporterEmail || '').toLowerCase().trim();
+    const rName = String(task.reporterName || '').toLowerCase().trim();
+
+    if (uId && rId && uId === rId) return true;
+    if (uEmail && rEmail && uEmail === rEmail) return true;
+    if (uName && rName && uName === rName) return true;
+
+    return false;
+  };
+
   // Send Team Invitation (Project scoped)
   const sendInvitation = async (inviteeEmail, targetProjectId = null) => {
     if (!currentUser) {
@@ -2168,10 +2210,15 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  // Check if a user is the primary root administrator
-  const isUserAdmin = (userToLookup = currentUser) => {
+  const isRootAdmin = (userToLookup = currentUser) => {
     if (!userToLookup) return false;
     return Boolean(userToLookup.rootadmin === 1 || String(userToLookup.rootadmin) === '1');
+  };
+
+  // Check if a user is an administrator or manager/editor with full management rights
+  const isUserAdmin = (userToLookup = currentUser) => {
+    if (!userToLookup) return false;
+    return isManagerOrEditorOrRoot(userToLookup);
   };
 
   // Filter tasks strictly available to currentUser
@@ -2421,6 +2468,11 @@ export const AppProvider = ({ children }) => {
         deleteRequirement,
         convertRequirementToTask,
         isManagerOrEditorOrRoot,
+        isRootAdmin,
+        canManageTaskAssignment,
+        canEditTaskScope,
+        canUpdateTaskStatus,
+        canSendTaskToTesting,
         isViewer,
         // Team Chat & Docs
         chatMessages,

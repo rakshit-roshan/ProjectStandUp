@@ -12,7 +12,9 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Eye
+  Eye,
+  Play,
+  TestTube2
 } from 'lucide-react';
 
 export const KanbanView = () => {
@@ -28,7 +30,12 @@ export const KanbanView = () => {
     currentProject,
     isUserAdmin,
     isTaskAssignedToUser,
-    isViewer
+    isViewer,
+    setSelectedTaskId,
+    setIsTaskDrawerOpen,
+    canUpdateTaskStatus,
+    canSendTaskToTesting,
+    openSendToTestingModal
   } = useApp();
 
   const viewerMode = isViewer ? isViewer() : false;
@@ -152,11 +159,17 @@ export const KanbanView = () => {
                   colTasks.map(task => {
                     const assignerName = task.reporterName || (task.reporterId ? users.find(u => String(u.id) === String(task.reporterId))?.name : null) || 'Manager';
                     const assigneeName = task.assigneeName || 'Unassigned';
+                    const canUpdate = canUpdateTaskStatus ? canUpdateTaskStatus(task, currentUser) : false;
+                    const canSendTesting = canSendTaskToTesting ? canSendTaskToTesting(task, currentUser) : false;
 
                     return (
                       <div
                         key={task.id}
-                        className="p-3.5 bg-white rounded-md border border-slate-200 shadow-2xs space-y-2.5 select-text"
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setIsTaskDrawerOpen(true);
+                        }}
+                        className="p-3.5 bg-white rounded-md border border-slate-200 shadow-2xs hover:border-blue-400 hover:shadow-xs cursor-pointer transition-all space-y-2 select-text"
                       >
                         {/* Top Meta Line */}
                         <div className="flex items-center justify-between">
@@ -169,13 +182,32 @@ export const KanbanView = () => {
                               </span>
                             )}
                           </div>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                            task.priority === 'Critical' ? 'bg-red-100 text-red-700 border border-red-200' :
-                            task.priority === 'High' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                            'bg-slate-100 text-slate-700'
-                          }`}>
-                            {task.priority}
-                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            {canUpdate && (
+                              <select
+                                value={task.status}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateTaskStatus(task.id, e.target.value);
+                                }}
+                                className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 text-[9px] font-semibold text-slate-700 outline-none cursor-pointer"
+                                title="Change Task Status"
+                              >
+                                <option value="Backlog">Backlog</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="In Review">In Review</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            )}
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              task.priority === 'Critical' ? 'bg-red-100 text-red-700 border border-red-200' :
+                              task.priority === 'High' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                              'bg-slate-100 text-slate-700'
+                            }`}>
+                              {task.priority}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Task Title */}
@@ -191,6 +223,63 @@ export const KanbanView = () => {
                                 {lbl}
                               </span>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Status Progression Quick Action Button */}
+                        {task.status === 'Backlog' && canUpdate && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTaskStatus(task.id, 'In Progress');
+                            }}
+                            className="w-full py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] rounded flex items-center justify-center space-x-1 transition-colors cursor-pointer"
+                          >
+                            <Play className="w-2.5 h-2.5 fill-current" />
+                            <span>Start Working</span>
+                          </button>
+                        )}
+
+                        {task.status === 'In Progress' && canUpdate && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTaskStatus(task.id, 'Completed');
+                            }}
+                            className="w-full py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-[10px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>Mark Completed</span>
+                          </button>
+                        )}
+
+                        {task.status === 'Completed' && (
+                          canSendTesting ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openSendToTestingModal(task);
+                              }}
+                              className="w-full py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-[10px] rounded flex items-center justify-center space-x-1 transition-colors shadow-2xs cursor-pointer animate-in fade-in duration-100"
+                            >
+                              <TestTube2 className="w-2.5 h-2.5" />
+                              <span>Send to QA Testing</span>
+                            </button>
+                          ) : (
+                            <div className="w-full py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[9px] rounded flex items-center justify-center space-x-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>Completed (Awaiting QA)</span>
+                            </div>
+                          )
+                        )}
+
+                        {task.status === 'In Review' && (
+                          <div className="w-full py-0.5 bg-purple-50 border border-purple-200 text-purple-800 font-semibold text-[9px] rounded flex items-center justify-center space-x-1">
+                            <TestTube2 className="w-2.5 h-2.5 text-purple-600" />
+                            <span>In QA Review</span>
                           </div>
                         )}
 

@@ -16,6 +16,7 @@ import {
 export const BugReportModal = () => {
   const {
     currentUser,
+    currentProject,
     isReportBugModalOpen,
     setIsReportBugModalOpen,
     createIssue,
@@ -23,10 +24,12 @@ export const BugReportModal = () => {
     selectedTaskId,
     tasks,
     users,
-    currentProject,
     getProjectMembers,
-    getUserRoleName
+    getUserRoleName,
+    canManageTaskAssignment
   } = useApp();
+
+  const canAssign = canManageTaskAssignment ? canManageTaskAssignment(currentUser) : false;
 
   const teamMembers = getProjectMembers(currentProject);
   const allAvailableUsers = [
@@ -261,9 +264,20 @@ export const BugReportModal = () => {
               <div className="relative">
                 <label className="block font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center justify-between">
                   <span>Developer / Assignee(s)</span>
-                  <span className="text-[10px] text-blue-600 font-mono">({selectedAssigneeIds.length} selected)</span>
+                  {canAssign && <span className="text-[10px] text-blue-600 font-mono">({selectedAssigneeIds.length} selected)</span>}
                 </label>
 
+                {!canAssign ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded px-2.5 py-2 text-xs flex items-center justify-between">
+                    <div className="flex items-center space-x-2 truncate">
+                      <span className="text-slate-500 text-[11px]">Assigned to:</span>
+                      <span className="font-semibold text-slate-800">
+                        {assignedUsersList.map(u => u.name).join(', ') || 'Task Developer'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono px-1.5 py-0.5 bg-slate-100 rounded">Linked from Task</span>
+                  </div>
+                ) : (
                 <div className="relative">
                   <button
                     type="button"
@@ -376,6 +390,7 @@ export const BugReportModal = () => {
                     </>
                   )}
                 </div>
+                )}
               </div>
             </div>
 

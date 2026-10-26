@@ -34,7 +34,10 @@ public class ProjectController {
         List<Project> all = projectRepository.findAll();
 
         boolean isRootAdmin = "1".equals(rootAdminStr) || "true".equalsIgnoreCase(rootAdminStr);
-        if (isRootAdmin) {
+        boolean isManagerOrAdmin = isRootAdmin ||
+                "1".equalsIgnoreCase(userRole) || "2".equalsIgnoreCase(userRole) ||
+                "ADMIN".equalsIgnoreCase(userRole) || "MANAGER".equalsIgnoreCase(userRole);
+        if (isManagerOrAdmin) {
             return all;
         }
 

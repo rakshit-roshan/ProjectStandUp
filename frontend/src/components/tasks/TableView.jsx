@@ -13,7 +13,8 @@ import {
   Download,
   Trash2,
   Tag,
-  Eye
+  Eye,
+  TestTube2
 } from 'lucide-react';
 
 export const TableView = () => {
@@ -28,7 +29,12 @@ export const TableView = () => {
     currentUser,
     isUserAdmin,
     isTaskAssignedToUser,
-    isViewer
+    isViewer,
+    setSelectedTaskId,
+    setIsTaskDrawerOpen,
+    canUpdateTaskStatus,
+    canSendTaskToTesting,
+    openSendToTestingModal
   } = useApp();
 
   const viewerMode = isViewer ? isViewer() : false;
@@ -211,13 +217,26 @@ export const TableView = () => {
                         {task.title}
                       </td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                          task.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                          task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                          task.status === 'In Review' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {task.status}
-                        </span>
+                        {canUpdateTaskStatus && canUpdateTaskStatus(task, currentUser) ? (
+                          <select
+                            value={task.status}
+                            onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                            className="bg-white border border-slate-200 rounded px-2 py-0.5 text-[10px] font-semibold text-slate-800 outline-none cursor-pointer focus:border-blue-500 shadow-2xs"
+                          >
+                            <option value="Backlog">Backlog</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="In Review">In Review</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            task.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                            task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                            task.status === 'In Review' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {task.status}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
@@ -254,17 +273,29 @@ export const TableView = () => {
                       <td className="p-3 text-center font-mono font-semibold">{task.storyPoints}</td>
                       <td className="p-3 text-slate-500 font-mono text-[11px]">{task.dueDate}</td>
                       <td className="p-3 text-right" onClick={e => e.stopPropagation()}>
-                        {task.id && (
-                          <button
-                            onClick={() => {
-                              setSelectedTaskId(task.id);
-                              setIsTaskDrawerOpen(true);
-                            }}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors"
-                          >
-                            Details →
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end space-x-1.5">
+                          {task.status === 'Completed' && canSendTaskToTesting && canSendTaskToTesting(task, currentUser) && (
+                            <button
+                              onClick={() => openSendToTestingModal(task)}
+                              className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 transition-colors shadow-2xs cursor-pointer"
+                              title="Send Completed Task to QA"
+                            >
+                              <TestTube2 className="w-3 h-3" />
+                              <span>QA →</span>
+                            </button>
+                          )}
+                          {task.id && (
+                            <button
+                              onClick={() => {
+                                setSelectedTaskId(task.id);
+                                setIsTaskDrawerOpen(true);
+                              }}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Details →
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
