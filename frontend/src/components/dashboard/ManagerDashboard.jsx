@@ -588,10 +588,11 @@ export const ManagerDashboard = () => {
                           {canManageTasks ? (
                             <div className="flex items-center justify-end space-x-1">
                               <button
-                                title="Edit / Reassign Task"
+                                title="View & Edit Task Details"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openEditTaskModal(task);
+                                  setSelectedTaskId(task.id);
+                                  setIsTaskDrawerOpen(true);
                                 }}
                                 className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
                               >
@@ -738,10 +739,11 @@ export const ManagerDashboard = () => {
                                 {canManageTasks && (
                                   <div className="flex items-center space-x-1 pl-2 border-l border-slate-200">
                                     <button
-                                      title="Edit / Reassign Task"
+                                      title="View & Edit Task Details"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        openEditTaskModal(task);
+                                        setSelectedTaskId(task.id);
+                                        setIsTaskDrawerOpen(true);
                                       }}
                                       className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                                     >

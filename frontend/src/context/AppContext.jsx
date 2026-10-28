@@ -312,8 +312,11 @@ export const AppProvider = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const openEditTaskModal = (task) => {
-    setEditingTask(task);
-    setIsEditTaskModalOpen(true);
+    if (task) {
+      if (task.id) setSelectedTaskId(task.id);
+      setEditingTask(task);
+      setIsTaskDrawerOpen(true);
+    }
   };
 
   const openEditProjectModal = (proj) => {
@@ -439,7 +442,24 @@ export const AppProvider = ({ children }) => {
 
       if (tasksRes.ok) {
         const tasksData = await tasksRes.json();
-        if (Array.isArray(tasksData)) setTasks(tasksData);
+        if (Array.isArray(tasksData)) {
+          const parsedTasks = tasksData.map(t => {
+            let atts = [];
+            if (t.attachmentsJson) {
+              try { atts = JSON.parse(t.attachmentsJson); } catch (e) {}
+            } else if (Array.isArray(t.attachments)) {
+              atts = t.attachments;
+            }
+            let subs = [];
+            if (t.subtasksJson) {
+              try { subs = JSON.parse(t.subtasksJson); } catch (e) {}
+            } else if (Array.isArray(t.subtasks)) {
+              subs = t.subtasks;
+            }
+            return { ...t, attachments: atts, subtasks: subs };
+          });
+          setTasks(parsedTasks);
+        }
       }
       if (issuesRes.ok) {
         const issuesData = await issuesRes.json();
@@ -1117,7 +1137,11 @@ export const AppProvider = ({ children }) => {
       testingStatus: 'Pending Testing',
       testerId: currentUser?.id || '',
       testerName: currentUser?.name || '',
-      hasIssue: false
+      hasIssue: false,
+      attachments: Array.isArray(newTaskData.attachments) ? newTaskData.attachments : [],
+      attachmentsJson: JSON.stringify(Array.isArray(newTaskData.attachments) ? newTaskData.attachments : []),
+      subtasks: Array.isArray(newTaskData.subtasks) ? newTaskData.subtasks : [],
+      subtasksJson: JSON.stringify(Array.isArray(newTaskData.subtasks) ? newTaskData.subtasks : [])
     };
 
     let savedTask = task;
@@ -1131,9 +1155,22 @@ export const AppProvider = ({ children }) => {
       throw new Error(err.message || `Failed to create task (${res.status})`);
     }
     savedTask = await res.json();
+    let atts = Array.isArray(newTaskData.attachments) ? newTaskData.attachments : [];
+    if (savedTask.attachmentsJson) {
+      try { atts = JSON.parse(savedTask.attachmentsJson); } catch (e) {}
+    } else if (Array.isArray(savedTask.attachments)) {
+      atts = savedTask.attachments;
+    }
+    let subs = Array.isArray(newTaskData.subtasks) ? newTaskData.subtasks : [];
+    if (savedTask.subtasksJson) {
+      try { subs = JSON.parse(savedTask.subtasksJson); } catch (e) {}
+    } else if (Array.isArray(savedTask.subtasks)) {
+      subs = savedTask.subtasks;
+    }
+    const finalized = { ...savedTask, attachments: atts, subtasks: subs };
 
-    setTasks(prev => [savedTask, ...prev]);
-    return savedTask;
+    setTasks(prev => [finalized, ...prev]);
+    return finalized;
   };
 
   // Update Task Status REST Persist
@@ -1162,9 +1199,26 @@ export const AppProvider = ({ children }) => {
   const updateTask = async (taskId, updatedFields) => {
     const activeUrl = apiUrl || API_BASE_URL;
     const existingTask = tasks.find(t => t.id === taskId) || (editingTask?.id === taskId ? editingTask : null) || {};
+
+    let attachments = updatedFields.attachments !== undefined ? updatedFields.attachments : (existingTask.attachments || []);
+    let attachmentsJson = updatedFields.attachmentsJson;
+    if (updatedFields.attachments !== undefined && attachmentsJson === undefined) {
+      attachmentsJson = JSON.stringify(updatedFields.attachments || []);
+    }
+
+    let subtasks = updatedFields.subtasks !== undefined ? updatedFields.subtasks : (existingTask.subtasks || []);
+    let subtasksJson = updatedFields.subtasksJson;
+    if (updatedFields.subtasks !== undefined && subtasksJson === undefined) {
+      subtasksJson = JSON.stringify(updatedFields.subtasks || []);
+    }
+
     const updatedTask = {
       ...existingTask,
       ...updatedFields,
+      attachments,
+      subtasks,
+      ...(attachmentsJson !== undefined ? { attachmentsJson } : {}),
+      ...(subtasksJson !== undefined ? { subtasksJson } : {}),
       id: taskId,
       updatedAt: new Date().toISOString()
     };
@@ -1190,11 +1244,24 @@ export const AppProvider = ({ children }) => {
       });
       if (res.ok) {
         const saved = await res.json();
-        setTasks(prev => prev.map(t => t.id === saved.id ? saved : t));
-        if (editingTask && editingTask.id === saved.id) {
-          setEditingTask(saved);
+        let atts = attachments;
+        if (saved.attachmentsJson) {
+          try { atts = JSON.parse(saved.attachmentsJson); } catch (e) {}
+        } else if (Array.isArray(saved.attachments)) {
+          atts = saved.attachments;
         }
-        return saved;
+        let subs = subtasks;
+        if (saved.subtasksJson) {
+          try { subs = JSON.parse(saved.subtasksJson); } catch (e) {}
+        } else if (Array.isArray(saved.subtasks)) {
+          subs = saved.subtasks;
+        }
+        const finalized = { ...saved, attachments: atts, subtasks: subs };
+        setTasks(prev => prev.map(t => t.id === finalized.id ? finalized : t));
+        if (editingTask && editingTask.id === finalized.id) {
+          setEditingTask(finalized);
+        }
+        return finalized;
       } else {
         throw new Error(`Failed to update task (${res.status})`);
       }

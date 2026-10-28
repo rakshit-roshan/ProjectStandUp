@@ -343,7 +343,9 @@ public class TenantDatabaseService {
                     "testing_status VARCHAR(50), " +
                     "tester_id VARCHAR(255), " +
                     "tester_name VARCHAR(255), " +
-                    "has_issue BOOLEAN" +
+                    "has_issue BOOLEAN, " +
+                    "attachments_json LONGTEXT, " +
+                    "subtasks_json LONGTEXT" +
                     ");");
 
             // Table: issues (matches IssueItem.java)
@@ -487,6 +489,8 @@ public class TenantDatabaseService {
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_id VARCHAR(255);",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_name VARCHAR(255);",
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS has_issue BOOLEAN;",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;",
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS subtasks_json LONGTEXT;",
             // Issues
             "ALTER TABLE issues ADD COLUMN IF NOT EXISTS state VARCHAR(50);",
             "ALTER TABLE issues ADD COLUMN IF NOT EXISTS priority VARCHAR(50);",

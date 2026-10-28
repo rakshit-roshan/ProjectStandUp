@@ -49,6 +49,10 @@ public class TaskItem {
     private String testerName;
     @Column(name = "has_issue")
     private Boolean hasIssue;
+    @Column(name = "attachments_json", columnDefinition = "LONGTEXT")
+    private String attachmentsJson;
+    @Column(name = "subtasks_json", columnDefinition = "LONGTEXT")
+    private String subtasksJson;
 
     public TaskItem() {}
 
@@ -142,4 +146,10 @@ public class TaskItem {
 
     public Boolean getHasIssue() { return hasIssue; }
     public void setHasIssue(Boolean hasIssue) { this.hasIssue = hasIssue; }
+
+    public String getAttachmentsJson() { return attachmentsJson; }
+    public void setAttachmentsJson(String attachmentsJson) { this.attachmentsJson = attachmentsJson; }
+
+    public String getSubtasksJson() { return subtasksJson; }
+    public void setSubtasksJson(String subtasksJson) { this.subtasksJson = subtasksJson; }
 }

@@ -47,7 +47,6 @@ import { InteractiveSpotlightTour } from './components/auth/InteractiveSpotlight
 
 // Modals
 import { CreateTaskModal } from './components/modals/CreateTaskModal';
-import { EditTaskModal } from './components/modals/EditTaskModal';
 import { CreateSprintModal } from './components/modals/CreateSprintModal';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { EditProjectModal } from './components/modals/EditProjectModal';
@@ -134,7 +133,6 @@ const MainContent = () => {
       <TaskDetailsDrawer />
       <IssueDetailsDrawer />
       <CreateTaskModal />
-      <EditTaskModal />
       <CreateSprintModal />
       <CreateProjectModal />
       <EditProjectModal />

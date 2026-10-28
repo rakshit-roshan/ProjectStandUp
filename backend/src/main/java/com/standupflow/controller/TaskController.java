@@ -158,6 +158,12 @@ public class TaskController {
         if (task.getStoryPoints() == null) {
             task.setStoryPoints(3);
         }
+        if (task.getAttachmentsJson() == null) {
+            task.setAttachmentsJson("[]");
+        }
+        if (task.getSubtasksJson() == null) {
+            task.setSubtasksJson("[]");
+        }
         if (task.getUpdatedAt() == null) {
             task.setUpdatedAt(LocalDateTime.now().toString());
         }
@@ -223,6 +229,8 @@ public class TaskController {
             if (taskDetails.getTesterId() != null) task.setTesterId(taskDetails.getTesterId());
             if (taskDetails.getTesterName() != null) task.setTesterName(taskDetails.getTesterName());
             if (taskDetails.getHasIssue() != null) task.setHasIssue(taskDetails.getHasIssue());
+            if (taskDetails.getAttachmentsJson() != null) task.setAttachmentsJson(taskDetails.getAttachmentsJson());
+            if (taskDetails.getSubtasksJson() != null) task.setSubtasksJson(taskDetails.getSubtasksJson());
             if (taskDetails.getUpdatedAt() != null) task.setUpdatedAt(taskDetails.getUpdatedAt());
             else task.setUpdatedAt(LocalDateTime.now().toString());
 
