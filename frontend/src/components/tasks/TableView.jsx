@@ -212,8 +212,24 @@ export const TableView = () => {
                           className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="p-3 font-mono font-bold text-blue-600">{task.id}</td>
-                      <td className="p-3 font-semibold text-slate-900 max-w-xs truncate">
+                      <td 
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setIsTaskDrawerOpen(true);
+                        }}
+                        className="p-3 font-mono font-bold text-blue-600 hover:underline cursor-pointer"
+                        title="Click to view task details"
+                      >
+                        {task.id}
+                      </td>
+                      <td 
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setIsTaskDrawerOpen(true);
+                        }}
+                        className="p-3 font-semibold text-slate-900 max-w-xs truncate hover:text-blue-600 cursor-pointer"
+                        title="Click to view task details"
+                      >
                         {task.title}
                       </td>
                       <td className="p-3">

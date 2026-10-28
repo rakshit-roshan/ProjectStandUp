@@ -72,8 +72,8 @@ export const CreateTaskModal = () => {
 
     try {
       await createTask({
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         priority,
         storyPoints,
         assigneeId: assigneeIdsStr,

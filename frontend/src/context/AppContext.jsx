@@ -1170,6 +1170,7 @@ export const AppProvider = ({ children }) => {
     const finalized = { ...savedTask, attachments: atts, subtasks: subs };
 
     setTasks(prev => [finalized, ...prev]);
+    setSelectedTaskId(finalized.id);
     return finalized;
   };
 

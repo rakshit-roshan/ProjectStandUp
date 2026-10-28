@@ -458,85 +458,97 @@ public class TenantDatabaseService {
         }
     }
 
-    private void alignExistingTenantTableSchemas(Statement stmt) {
-        String[] alterStatements = new String[] {
-            // Projects
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_emails VARCHAR(2000);",
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS member_ids VARCHAR(2000);",
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS `lead` VARCHAR(255);",
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS lead_id VARCHAR(255);",
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS invite_code VARCHAR(255);",
-            // Sprints
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS total_tasks INT;",
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS completed_tasks INT;",
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS story_points INT;",
-            "ALTER TABLE sprints ADD COLUMN IF NOT EXISTS completed_story_points INT;",
-            // Tasks
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_id VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sprint_name VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reporter_id VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee_avatar LONGTEXT;",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS story_points INT;",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date VARCHAR(50);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS testing_status VARCHAR(50);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_id VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS tester_name VARCHAR(255);",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS has_issue BOOLEAN;",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;",
-            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS subtasks_json LONGTEXT;",
-            // Issues
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS state VARCHAR(50);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS priority VARCHAR(50);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS severity VARCHAR(50);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS assignee_avatar LONGTEXT;",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS module VARCHAR(255);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS project_name VARCHAR(255);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS linked_task_id VARCHAR(255);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS linked_task_title VARCHAR(255);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS due_date VARCHAR(50);",
-            "ALTER TABLE issues ADD COLUMN IF NOT EXISTS end_date VARCHAR(50);",
-            // Invitations
-            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_id VARCHAR(255);",
-            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_name VARCHAR(255);",
-            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS manager_code VARCHAR(255);",
-            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS project_id VARCHAR(255);",
-            "ALTER TABLE invitations ADD COLUMN IF NOT EXISTS invitee_email VARCHAR(255);",
-            // Notifications
-            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);",
-            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(255);",
-            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link_task_id VARCHAR(255);",
-            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS timestamp VARCHAR(50);",
-            // Chat Messages
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS recipient_id VARCHAR(255);",
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel_id VARCHAR(255);",
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;",
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions_json LONGTEXT;",
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;",
-            // Chat Channels
-            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS type VARCHAR(50);",
-            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description VARCHAR(1000);",
-            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_by VARCHAR(255);",
-            "ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS created_at VARCHAR(100);",
-            // Requirements
-            "ALTER TABLE requirements ADD COLUMN IF NOT EXISTS attachments_json LONGTEXT;"
-        };
-
-        for (String sql : alterStatements) {
-            try {
-                stmt.executeUpdate(sql);
-            } catch (Exception ignored) {}
+    private void addColumnSafely(Statement stmt, String tableName, String columnName, String columnType) {
+        try {
+            stmt.executeUpdate("ALTER TABLE `" + tableName + "` ADD COLUMN `" + columnName + "` " + columnType);
+            System.out.println("[TenantDatabaseService] Successfully added missing column '" + columnName + "' to table '" + tableName + "'.");
+        } catch (java.sql.SQLException e) {
+            // MySQL error code 1060 (ER_DUP_FIELDNAME) and similar duplicate column messages mean the column already exists
+            if (e.getErrorCode() != 1060 && (e.getMessage() == null || !e.getMessage().toLowerCase().contains("duplicate column"))) {
+                System.err.println("[TenantDatabaseService] Note on column '" + columnName + "' in table '" + tableName + "': " + e.getMessage());
+            }
         }
+    }
+
+    private void alignExistingTenantTableSchemas(Statement stmt) {
+        // Projects
+        addColumnSafely(stmt, "projects", "member_emails", "VARCHAR(2000)");
+        addColumnSafely(stmt, "projects", "member_ids", "VARCHAR(2000)");
+        addColumnSafely(stmt, "projects", "lead", "VARCHAR(255)");
+        addColumnSafely(stmt, "projects", "lead_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "projects", "invite_code", "VARCHAR(255)");
+
+        // Sprints
+        addColumnSafely(stmt, "sprints", "project_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "sprints", "project_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "sprints", "total_tasks", "INT");
+        addColumnSafely(stmt, "sprints", "completed_tasks", "INT");
+        addColumnSafely(stmt, "sprints", "story_points", "INT");
+        addColumnSafely(stmt, "sprints", "completed_story_points", "INT");
+
+        // Tasks
+        addColumnSafely(stmt, "tasks", "project_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "project_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "sprint_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "sprint_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "reporter_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "reporter_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "assignee_avatar", "LONGTEXT");
+        addColumnSafely(stmt, "tasks", "story_points", "INT");
+        addColumnSafely(stmt, "tasks", "start_date", "VARCHAR(50)");
+        addColumnSafely(stmt, "tasks", "due_date", "VARCHAR(50)");
+        addColumnSafely(stmt, "tasks", "updated_at", "VARCHAR(50)");
+        addColumnSafely(stmt, "tasks", "testing_status", "VARCHAR(50)");
+        addColumnSafely(stmt, "tasks", "tester_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "tester_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "tasks", "has_issue", "BOOLEAN");
+        addColumnSafely(stmt, "tasks", "attachments_json", "LONGTEXT");
+        addColumnSafely(stmt, "tasks", "subtasks_json", "LONGTEXT");
+
+        // Issues
+        addColumnSafely(stmt, "issues", "state", "VARCHAR(50)");
+        addColumnSafely(stmt, "issues", "priority", "VARCHAR(50)");
+        addColumnSafely(stmt, "issues", "severity", "VARCHAR(50)");
+        addColumnSafely(stmt, "issues", "assignee_avatar", "LONGTEXT");
+        addColumnSafely(stmt, "issues", "module", "VARCHAR(255)");
+        addColumnSafely(stmt, "issues", "project_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "issues", "project_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "issues", "linked_task_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "issues", "linked_task_title", "VARCHAR(255)");
+        addColumnSafely(stmt, "issues", "start_date", "VARCHAR(50)");
+        addColumnSafely(stmt, "issues", "due_date", "VARCHAR(50)");
+        addColumnSafely(stmt, "issues", "end_date", "VARCHAR(50)");
+
+        // Invitations
+        addColumnSafely(stmt, "invitations", "manager_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "invitations", "manager_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "invitations", "manager_code", "VARCHAR(255)");
+        addColumnSafely(stmt, "invitations", "project_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "invitations", "invitee_email", "VARCHAR(255)");
+
+        // Notifications
+        addColumnSafely(stmt, "notifications", "user_email", "VARCHAR(255)");
+        addColumnSafely(stmt, "notifications", "reporter_name", "VARCHAR(255)");
+        addColumnSafely(stmt, "notifications", "link_task_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "notifications", "is_read", "BOOLEAN DEFAULT FALSE");
+        addColumnSafely(stmt, "notifications", "timestamp", "VARCHAR(50)");
+
+        // Chat Messages
+        addColumnSafely(stmt, "chat_messages", "recipient_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "chat_messages", "channel_id", "VARCHAR(255)");
+        addColumnSafely(stmt, "chat_messages", "attachments_json", "LONGTEXT");
+        addColumnSafely(stmt, "chat_messages", "reactions_json", "LONGTEXT");
+        addColumnSafely(stmt, "chat_messages", "is_read", "BOOLEAN DEFAULT FALSE");
+        addColumnSafely(stmt, "chat_messages", "is_deleted", "BOOLEAN DEFAULT FALSE");
+
+        // Chat Channels
+        addColumnSafely(stmt, "chat_channels", "type", "VARCHAR(50)");
+        addColumnSafely(stmt, "chat_channels", "description", "VARCHAR(1000)");
+        addColumnSafely(stmt, "chat_channels", "created_by", "VARCHAR(255)");
+        addColumnSafely(stmt, "chat_channels", "created_at", "VARCHAR(100)");
+
+        // Requirements
+        addColumnSafely(stmt, "requirements", "attachments_json", "LONGTEXT");
     }
 
     public void alignAllTenantTableSchemas(String databaseName) {

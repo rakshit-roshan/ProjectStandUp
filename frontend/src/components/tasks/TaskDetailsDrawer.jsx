@@ -98,9 +98,9 @@ export const TaskDetailsDrawer = () => {
     ...users.filter(u => !teamMembers.some(tm => String(tm.id) === String(u.id)))
   ];
 
-  // Sync draft state with selectedTask whenever selectedTask changes
+  // Sync draft state with selectedTask whenever drawer opens or selectedTask changes
   useEffect(() => {
-    if (selectedTask) {
+    if (selectedTask && isTaskDrawerOpen) {
       setTitle(selectedTask.title || '');
       setDescription(selectedTask.description || '');
       setPriority(selectedTask.priority || 'Medium');
@@ -115,7 +115,43 @@ export const TaskDetailsDrawer = () => {
       setIsAssigneeDropdownOpen(false);
       setAssigneeSearchQuery('');
     }
-  }, [selectedTask?.id]);
+  }, [isTaskDrawerOpen, selectedTask?.id]);
+
+  // Auto-save title on blur
+  const handleTitleBlur = async () => {
+    const trimmed = title.trim();
+    if (selectedTask && trimmed && trimmed !== (selectedTask.title || '')) {
+      setIsSaving(true);
+      try {
+        await updateTask(selectedTask.id, { title: trimmed });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+      } catch (err) {
+        console.error('Failed to auto-save task title:', err);
+        setErrorMessage(err.message || 'Failed to save title');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  // Auto-save description on blur
+  const handleDescriptionBlur = async () => {
+    const trimmed = description.trim();
+    if (selectedTask && trimmed !== (selectedTask.description || '')) {
+      setIsSaving(true);
+      try {
+        await updateTask(selectedTask.id, { description: trimmed });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+      } catch (err) {
+        console.error('Failed to auto-save task description:', err);
+        setErrorMessage(err.message || 'Failed to save description');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
 
   // Keyboard shortcut: Escape to close, Ctrl+S / Cmd+S to save
   useEffect(() => {
@@ -588,6 +624,7 @@ export const TaskDetailsDrawer = () => {
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    onBlur={handleTitleBlur}
                     placeholder="Task title..."
                     className="w-full text-lg font-bold text-slate-900 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-3 py-2 outline-none transition-all shadow-2xs"
                   />
@@ -600,6 +637,7 @@ export const TaskDetailsDrawer = () => {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    onBlur={handleDescriptionBlur}
                     placeholder="Add detailed task description, acceptance criteria, or technical notes..."
                     rows={4}
                     className="w-full text-xs text-slate-700 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg p-3 outline-none transition-all resize-y shadow-2xs leading-relaxed"
