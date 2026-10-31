@@ -149,8 +149,8 @@ public class TaskController {
         if (task.getStatus() == null || task.getStatus().isBlank()) {
             task.setStatus("Backlog");
         }
-        if (task.getTestingStatus() == null || task.getTestingStatus().isBlank()) {
-            task.setTestingStatus("Pending Testing");
+        if (task.getTestingStatus() == null) {
+            task.setTestingStatus("");
         }
         if (task.getHasIssue() == null) {
             task.setHasIssue(false);

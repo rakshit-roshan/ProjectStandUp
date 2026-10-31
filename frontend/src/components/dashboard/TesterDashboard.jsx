@@ -26,6 +26,7 @@ export const TesterDashboard = () => {
     issues,
     updateTaskStatus,
     updateTask,
+    syncRequirementWithTask,
     updateIssueState,
     setIsReportBugModalOpen,
     navigateTo,
@@ -53,17 +54,25 @@ export const TesterDashboard = () => {
   const projectTasks = !currentProject ? [] : tasks.filter(t => t.projectId === currentProject?.id || String(t.projectId) === String(currentProject?.id));
   const projectIssues = !currentProject ? [] : issues.filter(i => i.projectId === currentProject?.id || String(i.projectId) === String(currentProject?.id));
 
-  // Testing tasks queue: only tasks that are in review or have testing workflow status
-  const candidateTestingTasks = projectTasks.filter(t => 
-    t.status === 'In Review' || 
-    t.testingStatus === 'In Testing' || 
-    t.testingStatus === 'Pending Testing' || 
-    t.testingStatus === 'Failed' ||
-    (t.status === 'Completed' && t.testingStatus === 'Passed')
-  );
+    // Testing tasks queue: ONLY tasks that have explicitly been sent to QA Testing (have an active testing status and an assigned tester)
+  const candidateTestingTasks = projectTasks.filter(t => {
+    const hasTestingStatus = t.testingStatus === 'Pending Testing' || 
+      t.testingStatus === 'In Testing' || 
+      t.testingStatus === 'Passed' || 
+      t.testingStatus === 'Failed';
 
-  // If Admin/Manager: see all tasks in testing process across the workspace.
-  // If Tester: see only tasks assigned to this specific tester (or unassigned tasks available for testing)
+    const hasAssignedTester = Boolean(
+      (Array.isArray(t.testerIds) && t.testerIds.length > 0) ||
+      (t.testerId && String(t.testerId).trim()) ||
+      (t.testerEmail && String(t.testerEmail).trim()) ||
+      (t.testerName && String(t.testerName).trim() && !t.testerName.toLowerCase().includes('unassigned'))
+    );
+
+    return hasTestingStatus && hasAssignedTester;
+  });
+
+  // If Admin/Manager: see all tasks currently in QA testing for this project.
+  // If Tester: see ONLY tasks assigned to this specific tester selected at time of sending!
   const testingTasks = candidateTestingTasks.filter(t => {
     if (isAdminOrManager) return true;
     const myId = currentUser?.id ? String(currentUser.id) : '';
@@ -78,7 +87,7 @@ export const TesterDashboard = () => {
       (myEmail && t.testerEmail && t.testerEmail.toLowerCase().includes(myEmail)) ||
       (myName && t.testerName && t.testerName.toLowerCase().includes(myName));
 
-    return isAssignedToMe || (!t.testerId && !t.testerEmail && !t.testerName);
+    return isAssignedToMe;
   });
   
   const pendingTesting = testingTasks.filter(t => t.testingStatus === 'Pending Testing' || (t.status === 'In Review' && t.testingStatus !== 'Passed'));
@@ -91,18 +100,26 @@ export const TesterDashboard = () => {
     ? testingTasks
     : testingTasks.filter(t => t.testingStatus === testingFilter);
 
-  const handleStatusChange = (taskId, newTestingStatus) => {
-    updateTask(taskId, {
+    const handleStatusChange = async (taskId, newTestingStatus) => {
+    const newStatus = newTestingStatus === 'Passed' ? 'Completed' : (newTestingStatus === 'Failed' ? 'In Progress' : 'In Review');
+    await updateTask(taskId, {
       testingStatus: newTestingStatus,
       hasIssue: newTestingStatus === 'Failed',
-      status: newTestingStatus === 'Passed' ? 'Completed' : (newTestingStatus === 'Failed' ? 'In Progress' : 'In Review')
+      status: newStatus
     });
     if (newTestingStatus === 'Passed') {
-      updateTaskStatus(taskId, 'Completed');
+      await updateTaskStatus(taskId, 'Completed');
       // If linked issues exist, mark them Done
       const linked = issues.filter(i => String(i.linkedTaskId) === String(taskId));
       linked.forEach(i => {
         if (updateIssueState) updateIssueState(i.id, 'Done');
+      });
+    }
+    if (typeof syncRequirementWithTask === 'function') {
+      await syncRequirementWithTask(taskId, {
+        testingStatus: newTestingStatus,
+        hasIssue: newTestingStatus === 'Failed',
+        status: newStatus
       });
     }
   };
@@ -235,7 +252,20 @@ export const TesterDashboard = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTasks.map(task => (
+              {filteredTasks.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="p-8 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-slate-300" />
+                      <div className="font-semibold text-slate-600">No QA Tasks in Testing Queue</div>
+                      <p className="text-[11px] text-slate-400 max-w-sm">
+                        Tasks appear here when developers complete work and click "Send to QA Testing" assigning them to you.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredTasks.map(task => (
                 <tr
                   key={task.id}
                   onClick={() => {
@@ -325,8 +355,8 @@ export const TesterDashboard = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              ))
+            )}</tbody>
           </table>
         </div>
       </div>

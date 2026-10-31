@@ -1134,9 +1134,11 @@ export const AppProvider = ({ children }) => {
       startDate: newTaskData.startDate || new Date().toISOString().split('T')[0],
       dueDate: newTaskData.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       updatedAt: new Date().toISOString(),
-      testingStatus: 'Pending Testing',
-      testerId: currentUser?.id || '',
-      testerName: currentUser?.name || '',
+      testingStatus: newTaskData.testingStatus || '',
+      testerId: newTaskData.testerId || '',
+      testerIds: newTaskData.testerIds || [],
+      testerName: newTaskData.testerName || '',
+      testerEmail: newTaskData.testerEmail || '',
       hasIssue: false,
       attachments: Array.isArray(newTaskData.attachments) ? newTaskData.attachments : [],
       attachmentsJson: JSON.stringify(Array.isArray(newTaskData.attachments) ? newTaskData.attachments : []),
@@ -1194,6 +1196,12 @@ export const AppProvider = ({ children }) => {
       }
     } catch (e) {
       console.warn('Backend updateTaskStatus fallback:', e);
+    }
+
+    try {
+      await syncRequirementWithTask(taskId, { status: newStatus });
+    } catch (syncErr) {
+      console.warn('Failed to sync requirement with task status:', syncErr);
     }
   };
 
@@ -1261,6 +1269,11 @@ export const AppProvider = ({ children }) => {
         setTasks(prev => prev.map(t => t.id === finalized.id ? finalized : t));
         if (editingTask && editingTask.id === finalized.id) {
           setEditingTask(finalized);
+        }
+        try {
+          await syncRequirementWithTask(taskId, updatedFields);
+        } catch (syncErr) {
+          console.warn('Failed to sync requirement in updateTask:', syncErr);
         }
         return finalized;
       } else {
@@ -1774,8 +1787,8 @@ export const AppProvider = ({ children }) => {
       description: reqData.description || '',
       priority: reqData.priority || 'Medium',
       category: reqData.category || 'Feature',
-      projectId: reqData.projectId || currentProject?.id || '',
-      projectName: reqData.projectName || currentProject?.name || '',
+      projectId: reqData.projectId || '',
+      projectName: reqData.projectName || '',
       sprintId: reqData.sprintId || '',
       sprintName: reqData.sprintName || '',
       assigneeId: reqData.assigneeId || '',
@@ -1858,10 +1871,13 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const convertRequirementToTask = async (reqId, taskPayload) => {
-    const createdTask = await createTask(taskPayload);
+  const convertRequirementToTask = async (reqId, taskPayload, customStatus = 'Moved to Sprint') => {
+    const createdTask = await createTask({
+      ...taskPayload,
+      requirementId: reqId
+    });
     await updateRequirement(reqId, {
-      status: 'Converted to Task',
+      status: customStatus || 'Moved to Sprint',
       convertedTaskId: createdTask.id,
       projectId: taskPayload.projectId,
       projectName: taskPayload.projectName,
@@ -1872,6 +1888,57 @@ export const AppProvider = ({ children }) => {
       assigneeAvatar: taskPayload.assigneeAvatar
     });
     return createdTask;
+  };
+
+  // Enterprise Task-Requirement Lifecycle Synchronizer:
+  // Dynamically traverses requirement status based on task execution (Sprint -> In Progress -> Under Review/QA Testing -> Passed/Completed or Failed Defect Restart)
+  const syncRequirementWithTask = async (taskId, taskUpdates = {}) => {
+    if (!taskId) return;
+    const targetTask = tasks.find(t => String(t.id) === String(taskId));
+    const mergedTask = { ...(targetTask || {}), ...taskUpdates };
+
+    // Find all requirements linked to this task
+    const linkedReqs = requirements.filter(r => 
+      (r.convertedTaskId && String(r.convertedTaskId) === String(taskId)) ||
+      (mergedTask.requirementId && String(r.id) === String(mergedTask.requirementId)) ||
+      (r.id && mergedTask.title && mergedTask.title.includes(r.id))
+    );
+
+    if (linkedReqs.length === 0) return;
+
+    const tStatus = mergedTask.status;
+    const testStatus = mergedTask.testingStatus;
+    const hasDefect = Boolean(mergedTask.hasIssue || testStatus === 'Failed');
+
+    let newReqStatus = 'Moved to Sprint';
+
+    if (testStatus === 'Passed') {
+      newReqStatus = 'Completed';
+    } else if (hasDefect || testStatus === 'Failed') {
+      // Testing failed -> cycle restarts back to In Progress
+      newReqStatus = 'In Progress';
+    } else if (tStatus === 'In Review' || testStatus === 'Pending Testing' || testStatus === 'In Testing') {
+      newReqStatus = 'Under Review';
+    } else if (tStatus === 'In Progress') {
+      newReqStatus = 'In Progress';
+    } else if (tStatus === 'Completed' || tStatus === 'Done') {
+      newReqStatus = 'Completed';
+    } else {
+      newReqStatus = mergedTask.sprintId ? 'Moved to Sprint' : 'Submitted';
+    }
+
+    for (const req of linkedReqs) {
+      await updateRequirement(req.id, {
+        status: newReqStatus,
+        sprintId: mergedTask.sprintId !== undefined ? mergedTask.sprintId : req.sprintId,
+        sprintName: mergedTask.sprintName || req.sprintName,
+        projectId: mergedTask.projectId !== undefined ? mergedTask.projectId : req.projectId,
+        projectName: mergedTask.projectName || req.projectName,
+        assigneeId: mergedTask.assigneeId !== undefined ? mergedTask.assigneeId : req.assigneeId,
+        assigneeName: mergedTask.assigneeName || req.assigneeName,
+        assigneeAvatar: mergedTask.assigneeAvatar !== undefined ? mergedTask.assigneeAvatar : req.assigneeAvatar
+      });
+    }
   };
 
   const isManagerOrEditorOrRoot = (user = currentUser) => {
@@ -1906,6 +1973,7 @@ export const AppProvider = ({ children }) => {
     if (!task || !userToLookup) return false;
     if (isViewer(userToLookup)) return false;
     if (isManagerOrEditorOrRoot(userToLookup)) return true;
+    if (isTaskAssignedToUser && isTaskAssignedToUser(task, userToLookup)) return true;
     return isTaskAssignedToUser(task, userToLookup);
   };
 
@@ -1919,6 +1987,7 @@ export const AppProvider = ({ children }) => {
 
     // Must be manager/editor/root OR the assigner (reporter) of the task
     if (isManagerOrEditorOrRoot(userToLookup)) return true;
+    if (isTaskAssignedToUser && isTaskAssignedToUser(task, userToLookup)) return true;
 
     const uId = String(userToLookup.id || '').trim();
     const uEmail = String(userToLookup.email || userToLookup.emailid || '').toLowerCase().trim();
@@ -2412,6 +2481,62 @@ export const AppProvider = ({ children }) => {
     return [];
   };
 
+  
+  // Enterprise auto-reconciliation: ensure requirement statuses match their active task traversal
+  useEffect(() => {
+    if (!tasks || tasks.length === 0 || !requirements || requirements.length === 0) return;
+
+    let hasChanges = false;
+    const reconciled = requirements.map(req => {
+      if (!req.convertedTaskId) return req;
+      const linked = tasks.find(t => String(t.id) === String(req.convertedTaskId) || (t.requirementId && String(t.requirementId) === String(req.id)));
+      if (!linked) return req;
+
+      let expectedStatus = req.status;
+      if (linked.testingStatus === 'Passed') {
+        expectedStatus = 'Completed';
+      } else if (linked.hasIssue || linked.testingStatus === 'Failed') {
+        expectedStatus = 'In Progress';
+      } else if (linked.status === 'In Review' || linked.testingStatus === 'Pending Testing' || linked.testingStatus === 'In Testing') {
+        expectedStatus = 'Under Review';
+      } else if (linked.status === 'In Progress') {
+        expectedStatus = 'In Progress';
+      } else if (linked.status === 'Completed' || linked.status === 'Done') {
+        expectedStatus = 'Completed';
+      } else if (linked.sprintId) {
+        expectedStatus = 'Moved to Sprint';
+      }
+
+      const sprintChanged = linked.sprintName && req.sprintName !== linked.sprintName;
+      const statusChanged = req.status !== expectedStatus;
+      const assigneeChanged = linked.assigneeName && req.assigneeName !== linked.assigneeName;
+
+      if (statusChanged || sprintChanged || assigneeChanged) {
+        hasChanges = true;
+        return {
+          ...req,
+          status: expectedStatus,
+          sprintId: linked.sprintId !== undefined ? linked.sprintId : req.sprintId,
+          sprintName: linked.sprintName || req.sprintName,
+          projectId: linked.projectId || req.projectId,
+          projectName: linked.projectName || req.projectName,
+          assigneeId: linked.assigneeId || req.assigneeId,
+          assigneeName: linked.assigneeName || req.assigneeName,
+          assigneeAvatar: linked.assigneeAvatar || req.assigneeAvatar,
+          updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+        };
+      }
+      return req;
+    });
+
+    if (hasChanges) {
+      setRequirements(reconciled);
+      try {
+        localStorage.setItem('standupflow_requirements', JSON.stringify(reconciled));
+      } catch (e) {}
+    }
+  }, [tasks]);
+
   return (
     <AppContext.Provider
       value={{
@@ -2535,6 +2660,7 @@ export const AppProvider = ({ children }) => {
         updateRequirement,
         deleteRequirement,
         convertRequirementToTask,
+        syncRequirementWithTask,
         isManagerOrEditorOrRoot,
         isRootAdmin,
         canManageTaskAssignment,

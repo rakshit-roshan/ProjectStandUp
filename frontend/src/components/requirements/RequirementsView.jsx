@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Eye,
   CheckSquare,
+  TestTube2,
   Sparkles,
   ChevronRight,
   X,
@@ -26,22 +27,27 @@ import {
   Image as ImageIcon,
   File as FileIcon,
   Download,
-  Maximize2
+  Maximize2,
+  Lock,
+  FolderPlus
 } from 'lucide-react';
 
 export const RequirementsView = () => {
   const {
     requirements = [],
+    tasks = [],
     createRequirement,
     updateRequirement,
     deleteRequirement,
     convertRequirementToTask,
+    updateTask,
     projects = [],
     currentProject,
     sprints = [],
     users = [],
     currentUser,
     isManagerOrEditorOrRoot,
+    getUserRoleName,
     setSelectedTaskId,
     setIsTaskDrawerOpen,
     navigateTo
@@ -60,13 +66,11 @@ export const RequirementsView = () => {
   const [selectedReq, setSelectedReq] = useState(null);
   const [previewItem, setPreviewItem] = useState(null);
 
-  // Form State for Submit / Edit
+  // Form State for Submit / Edit (Specifications only - Target Project & Status removed)
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [category, setCategory] = useState('Feature');
-  const [targetProjectId, setTargetProjectId] = useState(currentProject?.id || '');
-  const [editStatus, setEditStatus] = useState('Submitted');
 
   // Attachment State
   const [attachments, setAttachments] = useState([]);
@@ -74,10 +78,11 @@ export const RequirementsView = () => {
   const fileInputRef = useRef(null);
   const editFileInputRef = useRef(null);
 
-  // Form State for Assign / Move to Sprint
-  const [assignProjectId, setAssignProjectId] = useState(currentProject?.id || '');
+  // Form State for Move to Sprint & Assign Task (Target Project, Dynamic Sprint & Admin Status Decision)
+  const [assignProjectId, setAssignProjectId] = useState('');
   const [assignSprintId, setAssignSprintId] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
+  const [assignStatus, setAssignStatus] = useState('Moved to Sprint');
   const [storyPoints, setStoryPoints] = useState(3);
   const [taskPriority, setTaskPriority] = useState('Medium');
 
@@ -86,17 +91,60 @@ export const RequirementsView = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Permission helpers
-  const isPrivileged = isManagerOrEditorOrRoot ? isManagerOrEditorOrRoot(currentUser) : false;
+  // 1. Role Access Evaluator: ONLY Admin, Root, and Editor (or Manager) can access 'Move to Sprint & Assign Task'
+  const canAccessMoveToSprint = (user = currentUser) => {
+    if (!user) return false;
+    // Root administrator bypass
+    if (Boolean(user.rootadmin === 1 || String(user.rootadmin) === '1')) return true;
 
-  const canEditOrDelete = (req) => {
-    if (!req) return false;
-    if (isPrivileged) return true;
-    const currentUid = String(currentUser?.id || '');
-    const currentName = String(currentUser?.name || currentUser?.fullname || '').toLowerCase();
-    const reqCreatorId = String(req.createdByUserId || '');
-    const reqCreatorName = String(req.createdByName || '').toLowerCase();
-    return (currentUid && currentUid === reqCreatorId) || (currentName && currentName === reqCreatorName);
+    // Role codes: 1 = Admin, 2 = Manager (Engineering Manager/Admin level)
+    const code = Number(user.roleCode !== undefined && user.roleCode !== null ? user.roleCode : user.role);
+    if (code === 1 || code === 2) return true;
+
+    // String name checks
+    const roleName = String(getUserRoleName ? getUserRoleName(user) : (user.roleName || '')).toLowerCase();
+    const roleRaw = String(user.role || '').toLowerCase();
+
+    return (
+      roleName.includes('admin') ||
+      roleName.includes('root') ||
+      roleName.includes('editor') ||
+      roleName.includes('manager') ||
+      roleRaw.includes('admin') ||
+      roleRaw.includes('root') ||
+      roleRaw.includes('editor') ||
+      roleRaw.includes('manager')
+    );
+  };
+
+  // 2. Creator Ownership Evaluator: ONLY the original creator can edit their requirement
+  const isCreatorOfRequirement = (req, user = currentUser) => {
+    if (!req || !user) return false;
+
+    const currentUid = String(user.id || '').trim();
+    const currentName = String(user.name || user.fullname || '').toLowerCase().trim();
+    const currentUsername = String(user.username || '').toLowerCase().trim();
+    const currentEmail = String(user.email || user.emailid || '').toLowerCase().trim();
+
+    const reqCreatorId = String(req.createdByUserId || '').trim();
+    const reqCreatorName = String(req.createdByName || '').toLowerCase().trim();
+    const reqCreatorEmail = String(req.createdByEmail || '').toLowerCase().trim();
+
+    if (currentUid && reqCreatorId && currentUid === reqCreatorId) return true;
+    if (currentName && reqCreatorName && currentName === reqCreatorName) return true;
+    if (currentUsername && reqCreatorName && currentUsername === reqCreatorName) return true;
+    if (currentEmail && reqCreatorEmail && currentEmail === reqCreatorEmail) return true;
+
+    return false;
+  };
+
+  const canEditRequirement = (req) => {
+    return isCreatorOfRequirement(req);
+  };
+
+  const canDeleteRequirement = (req) => {
+    const isRoot = Boolean(currentUser?.rootadmin === 1 || String(currentUser?.rootadmin) === '1');
+    return isCreatorOfRequirement(req) || isRoot;
   };
 
   const formatFileSize = (bytes) => {
@@ -112,7 +160,6 @@ export const RequirementsView = () => {
     const files = Array.from(fileList);
 
     files.forEach(file => {
-      // 10MB limit check
       if (file.size > 10 * 1024 * 1024) {
         alert(`File "${file.name}" exceeds the 10MB size limit.`);
         return;
@@ -152,47 +199,71 @@ export const RequirementsView = () => {
     }
   };
 
+  // Open Submit Modal (Target Project removed)
   const openSubmitModal = () => {
     setTitle('');
     setDescription('');
     setPriority('Medium');
     setCategory('Feature');
-    setTargetProjectId(currentProject?.id || (projects[0]?.id || ''));
     setAttachments([]);
     setErrorMessage(null);
     setIsSubmitModalOpen(true);
   };
 
+  // Open Edit Modal (Strictly Creator Only - Target Project & Status removed)
   const openEditModal = (req) => {
+    if (!isCreatorOfRequirement(req)) {
+      alert('Access Denied: Only the creator of this requirement can edit it.');
+      return;
+    }
     setSelectedReq(req);
     setTitle(req.title || '');
     setDescription(req.description || '');
     setPriority(req.priority || 'Medium');
     setCategory(req.category || 'Feature');
-    setTargetProjectId(req.projectId || currentProject?.id || '');
-    setEditStatus(req.status || 'Submitted');
     setEditAttachments(Array.isArray(req.attachments) ? [...req.attachments] : []);
     setErrorMessage(null);
     setIsEditModalOpen(true);
   };
 
+  // Open Move to Sprint Modal (Admin / Root / Editor Only)
   const openAssignModal = (req) => {
+    if (!canAccessMoveToSprint(currentUser)) {
+      alert('Access Denied: Only Admin, Root, or Editor users can move requirements to sprint.');
+      return;
+    }
     setSelectedReq(req);
+
+    // Initial project: pre-existing req.projectId, or currentProject, or first available project
     const pId = req.projectId || currentProject?.id || (projects[0]?.id || '');
     setAssignProjectId(pId);
-    
-    // Pick first sprint of project
-    const availableSprints = sprints.filter(s => !pId || s.projectId === pId || String(s.projectId) === String(pId));
-    setAssignSprintId(availableSprints[0]?.id || '');
 
-    // Pick first assignee
-    setAssigneeId(users[0]?.id || '');
+    // Load available sprints dynamically for the selected project
+    const matchingSprints = sprints.filter(s => pId && String(s.projectId) === String(pId));
+    const matchingExisting = matchingSprints.find(s => String(s.id) === String(req.sprintId));
+    setAssignSprintId(matchingExisting ? matchingExisting.id : (matchingSprints[0]?.id || ''));
+
+    // Assignee
+    setAssigneeId(req.assigneeId || users[0]?.id || '');
+
+    // Status: Decided by Admin! Default to 'Moved to Sprint' if submitted, or preserve current status
+    setAssignStatus(req.status && req.status !== 'Submitted' ? req.status : 'Moved to Sprint');
+
     setStoryPoints(req.priority === 'Critical' ? 8 : req.priority === 'High' ? 5 : 3);
     setTaskPriority(req.priority || 'Medium');
     setErrorMessage(null);
     setIsAssignModalOpen(true);
   };
 
+  // Handle Project Change in Move to Sprint modal -> Dynamically reload sprint options
+  const handleAssignProjectChange = (e) => {
+    const newPId = e.target.value;
+    setAssignProjectId(newPId);
+    const matchingSprints = sprints.filter(s => newPId && String(s.projectId) === String(newPId));
+    setAssignSprintId(matchingSprints[0]?.id || '');
+  };
+
+  // Submit New Requirement (Target Project unassigned; admin assigns later in Move to Sprint)
   const handleSubmitNewRequirement = async (e) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -204,26 +275,27 @@ export const RequirementsView = () => {
     setErrorMessage(null);
 
     try {
-      const selectedProj = projects.find(p => p.id === targetProjectId || String(p.id) === String(targetProjectId));
       const newReqData = {
         title: title.trim(),
         description: description.trim(),
         priority,
         category,
-        projectId: selectedProj?.id || currentProject?.id || '',
-        projectName: selectedProj?.name || currentProject?.name || '',
+        projectId: '', // Intentionally unassigned; Admin/Editor assigns target project in Move to Sprint
+        projectName: '',
+        sprintId: '',
+        sprintName: '',
         status: 'Submitted',
         attachments: attachments,
-        createdByUserId: currentUser?.id || 'user-1',
-        createdByName: currentUser?.name || currentUser?.fullname || 'Team Member',
-        createdByAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-        createdByRole: currentUser?.role || 'User'
+        createdByUserId: String(currentUser?.id || 'user-1'),
+        createdByName: currentUser?.name || currentUser?.fullname || currentUser?.username || 'Team Member',
+        createdByAvatar: currentUser?.avatar || '',
+        createdByRole: getUserRoleName ? getUserRoleName(currentUser) : (currentUser?.role || 'Member')
       };
 
       await createRequirement(newReqData);
       setIsSubmitModalOpen(false);
       setAttachments([]);
-      setFeedbackMessage('Requirement submitted successfully with attachments!');
+      setFeedbackMessage('Requirement submitted successfully! Awaiting review and sprint assignment.');
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err) {
       console.error(err);
@@ -233,10 +305,15 @@ export const RequirementsView = () => {
     }
   };
 
+  // Save Edits (Strictly Creator Only - Content specs only, does not touch project or status)
   const handleUpdateRequirement = async (e) => {
     e.preventDefault();
     if (!selectedReq || !title.trim()) {
       setErrorMessage('Requirement title cannot be empty.');
+      return;
+    }
+    if (!isCreatorOfRequirement(selectedReq)) {
+      setErrorMessage('Permission denied: Only the creator of this requirement can edit it.');
       return;
     }
 
@@ -244,21 +321,17 @@ export const RequirementsView = () => {
     setErrorMessage(null);
 
     try {
-      const selectedProj = projects.find(p => p.id === targetProjectId || String(p.id) === String(targetProjectId));
       await updateRequirement(selectedReq.id, {
         title: title.trim(),
         description: description.trim(),
         priority,
         category,
-        projectId: selectedProj?.id || selectedReq.projectId,
-        projectName: selectedProj?.name || selectedReq.projectName,
-        status: editStatus,
         attachments: editAttachments
       });
 
       setIsEditModalOpen(false);
       setSelectedReq(null);
-      setFeedbackMessage('Requirement updated successfully!');
+      setFeedbackMessage('Requirement specifications updated successfully!');
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err) {
       console.error(err);
@@ -269,6 +342,10 @@ export const RequirementsView = () => {
   };
 
   const handleDeleteRequirement = async (req) => {
+    if (!canDeleteRequirement(req)) {
+      alert('Access Denied: Only the creator can delete this requirement.');
+      return;
+    }
     if (!window.confirm(`Are you sure you want to delete requirement "${req.title}"?`)) {
       return;
     }
@@ -283,41 +360,89 @@ export const RequirementsView = () => {
     }
   };
 
+  // Admin Move to Sprint & Assign Task (Sets Target Project, Sprint, Assignee & Admin Decided Status)
   const handleConvertAndAssign = async (e) => {
     e.preventDefault();
     if (!selectedReq) return;
+
+    if (!canAccessMoveToSprint(currentUser)) {
+      setErrorMessage('Access Denied: Only Admin, Root, or Editor users can perform this action.');
+      return;
+    }
+
+    if (!assignProjectId) {
+      setErrorMessage('Please select a target project.');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      const chosenProject = projects.find(p => p.id === assignProjectId || String(p.id) === String(assignProjectId)) || currentProject;
-      const chosenSprint = sprints.find(s => s.id === assignSprintId || String(s.id) === String(assignSprintId));
+      const chosenProject = projects.find(p => String(p.id) === String(assignProjectId)) || currentProject;
+      const chosenSprint = sprints.find(s => String(s.id) === String(assignSprintId));
       const chosenAssignee = users.find(u => String(u.id) === String(assigneeId));
 
-      await convertRequirementToTask(selectedReq.id, {
-        title: selectedReq.title,
-        description: selectedReq.description || `Converted from requirement ${selectedReq.id}`,
-        projectId: chosenProject?.id || 'PRJ-101',
-        projectName: chosenProject?.name || 'Default Project',
-        sprintId: chosenSprint?.id || '',
-        sprintName: chosenSprint?.name || '',
-        assigneeId: chosenAssignee?.id || '',
-        assigneeName: chosenAssignee?.name || 'Unassigned',
-        assigneeAvatar: chosenAssignee?.avatar || '',
-        priority: taskPriority,
-        storyPoints: parseInt(storyPoints) || 0,
-        status: 'Backlog',
-        labels: ['Requirement', selectedReq.category || 'Feature']
-      });
+      if (selectedReq.convertedTaskId) {
+        // Requirement was already converted to a task: update requirement assignment & status
+        await updateRequirement(selectedReq.id, {
+          status: assignStatus,
+          projectId: chosenProject?.id || '',
+          projectName: chosenProject?.name || '',
+          sprintId: chosenSprint?.id || '',
+          sprintName: chosenSprint?.name || '',
+          assigneeId: chosenAssignee?.id || '',
+          assigneeName: chosenAssignee?.name || chosenAssignee?.fullname || 'Unassigned',
+          assigneeAvatar: chosenAssignee?.avatar || ''
+        });
+
+        if (typeof updateTask === 'function') {
+          try {
+            await updateTask(selectedReq.convertedTaskId, {
+              projectId: chosenProject?.id,
+              projectName: chosenProject?.name,
+              sprintId: chosenSprint?.id || '',
+              sprintName: chosenSprint?.name || '',
+              assigneeId: chosenAssignee?.id || '',
+              assigneeName: chosenAssignee?.name || chosenAssignee?.fullname || 'Unassigned',
+              assigneeAvatar: chosenAssignee?.avatar || '',
+              priority: taskPriority,
+              storyPoints: parseInt(storyPoints) || 0
+            });
+          } catch (taskErr) {
+            console.warn('Could not update linked task:', taskErr);
+          }
+        }
+      } else {
+        // Convert to task and link
+        await convertRequirementToTask(
+          selectedReq.id,
+          {
+            title: selectedReq.title,
+            description: selectedReq.description || `Converted from requirement ${selectedReq.id}`,
+            projectId: chosenProject?.id || '',
+            projectName: chosenProject?.name || 'Default Project',
+            sprintId: chosenSprint?.id || '',
+            sprintName: chosenSprint?.name || '',
+            assigneeId: chosenAssignee?.id || '',
+            assigneeName: chosenAssignee?.name || chosenAssignee?.fullname || 'Unassigned',
+            assigneeAvatar: chosenAssignee?.avatar || '',
+            priority: taskPriority,
+            storyPoints: parseInt(storyPoints) || 0,
+            status: 'Backlog',
+            labels: ['Requirement', selectedReq.category || 'Feature']
+          },
+          assignStatus
+        );
+      }
 
       setIsAssignModalOpen(false);
       setSelectedReq(null);
-      setFeedbackMessage(`Requirement converted and assigned into sprint "${chosenSprint?.name || 'Backlog'}"!`);
+      setFeedbackMessage(`Requirement updated: status set to "${assignStatus}" in project "${chosenProject?.name || 'Assigned Project'}"!`);
       setTimeout(() => setFeedbackMessage(null), 4000);
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.message || 'Failed to convert requirement to task.');
+      setErrorMessage(err.message || 'Failed to update requirement and assign sprint.');
     } finally {
       setIsSubmitting(false);
     }
@@ -342,8 +467,15 @@ export const RequirementsView = () => {
   // Analytics Stats
   const totalCount = requirements.length;
   const submittedCount = requirements.filter(r => r.status === 'Submitted').length;
+  const inProgressCount = requirements.filter(r => r.status === 'In Progress').length;
   const underReviewCount = requirements.filter(r => r.status === 'Under Review').length;
-  const convertedCount = requirements.filter(r => r.status === 'Converted to Task' || r.status === 'Moved to Sprint').length;
+  const completedCount = requirements.filter(r => r.status === 'Completed').length;
+  const inSprintCount = requirements.filter(r => r.status === 'Moved to Sprint' || r.status === 'Converted to Task').length;
+
+  // Available sprints for selected project in Move to Sprint modal
+  const availableSprintsForProject = sprints.filter(
+    s => assignProjectId && (String(s.projectId) === String(assignProjectId))
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in duration-200">
@@ -361,7 +493,7 @@ export const RequirementsView = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Submit product requirements, review client requests, and assign them directly into project sprints as actionable tasks.
+              Submit product requirements, track feature specifications, and assign actionable tasks into project sprints.
             </p>
           </div>
         </div>
@@ -374,6 +506,7 @@ export const RequirementsView = () => {
             </div>
           )}
 
+          {/* Any authenticated role can submit a new requirement */}
           <button
             onClick={openSubmitModal}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 cursor-pointer"
@@ -385,10 +518,10 @@ export const RequirementsView = () => {
       </div>
 
       {/* Analytics KPI Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Requirements</div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Requirements</div>
             <div className="text-2xl font-bold text-slate-900 mt-1 font-mono">{totalCount}</div>
           </div>
           <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">
@@ -398,31 +531,41 @@ export const RequirementsView = () => {
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Submitted / New</div>
-            <div className="text-2xl font-bold text-amber-900 mt-1 font-mono">{submittedCount}</div>
+            <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Submitted / Backlog</div>
+            <div className="text-2xl font-bold text-blue-900 mt-1 font-mono">{submittedCount}</div>
           </div>
-          <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
             <Clock className="w-5 h-5" />
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Under Review</div>
-            <div className="text-2xl font-bold text-blue-900 mt-1 font-mono">{underReviewCount}</div>
+            <div className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Active Dev / In Sprint</div>
+            <div className="text-2xl font-bold text-amber-900 mt-1 font-mono">{inProgressCount + inSprintCount}</div>
           </div>
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-            <Eye className="w-5 h-5" />
+          <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+            <Zap className="w-5 h-5" />
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Assigned to Sprints</div>
-            <div className="text-2xl font-bold text-emerald-900 mt-1 font-mono">{convertedCount}</div>
+            <div className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">Under QA Testing</div>
+            <div className="text-2xl font-bold text-purple-900 mt-1 font-mono">{underReviewCount}</div>
+          </div>
+          <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+            <TestTube2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Completed / QA Passed</div>
+            <div className="text-2xl font-bold text-emerald-900 mt-1 font-mono">{completedCount}</div>
           </div>
           <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-            <Zap className="w-5 h-5" />
+            <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -449,10 +592,10 @@ export const RequirementsView = () => {
           >
             <option value="ALL">All Statuses</option>
             <option value="Submitted">Submitted (New)</option>
-            <option value="Under Review">Under Review</option>
             <option value="Moved to Sprint">Moved to Sprint</option>
-            <option value="Converted to Task">Converted to Task</option>
-            <option value="Completed">Completed</option>
+            <option value="In Progress">In Progress (Active Dev)</option>
+            <option value="Under Review">Under Review (QA Testing)</option>
+            <option value="Completed">Completed (QA Passed)</option>
           </select>
 
           {/* Priority Filter */}
@@ -499,8 +642,10 @@ export const RequirementsView = () => {
           </div>
         ) : (
           filteredRequirements.map((req) => {
-            const hasEditPermission = canEditOrDelete(req);
-            const isConverted = req.status === 'Converted to Task' || req.status === 'Moved to Sprint';
+            const isCreator = isCreatorOfRequirement(req);
+            const canAssign = canAccessMoveToSprint(currentUser);
+            const linkedTask = req.convertedTaskId ? tasks.find(t => String(t.id) === String(req.convertedTaskId)) : null;
+            const isConverted = Boolean(req.convertedTaskId || req.status === 'Converted to Task' || req.status === 'Moved to Sprint' || req.status === 'In Progress' || req.status === 'Under Review' || req.status === 'Completed');
 
             return (
               <div
@@ -535,23 +680,53 @@ export const RequirementsView = () => {
 
                     {/* Status Badge */}
                     <span
-                      className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border flex items-center space-x-1 ${
-                        req.status === 'Converted to Task'
+                      className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border flex items-center space-x-1.5 ${
+                        req.status === 'Completed'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : req.status === 'Moved to Sprint'
-                          ? 'bg-purple-50 text-purple-800 border-purple-200'
                           : req.status === 'Under Review'
+                          ? 'bg-purple-50 text-purple-800 border-purple-200'
+                          : req.status === 'In Progress'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : req.status === 'Moved to Sprint' || req.status === 'Converted to Task'
                           ? 'bg-blue-50 text-blue-800 border-blue-200'
-                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        req.status === 'Converted to Task' ? 'bg-emerald-500' :
-                        req.status === 'Moved to Sprint' ? 'bg-purple-500' :
-                        req.status === 'Under Review' ? 'bg-blue-500' : 'bg-amber-500'
-                      }`} />
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          req.status === 'Completed'
+                            ? 'bg-emerald-500'
+                            : req.status === 'Under Review'
+                            ? 'bg-purple-500'
+                            : req.status === 'In Progress'
+                            ? 'bg-amber-500'
+                            : req.status === 'Moved to Sprint' || req.status === 'Converted to Task'
+                            ? 'bg-blue-500'
+                            : 'bg-slate-400'
+                        }`}
+                      />
                       <span>{req.status || 'Submitted'}</span>
                     </span>
+
+                    {/* Live QA Status Indicator Pill */}
+                    {linkedTask && linkedTask.testingStatus === 'Passed' && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>QA Passed</span>
+                      </span>
+                    )}
+                    {linkedTask && linkedTask.testingStatus === 'Failed' && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-800 border border-red-300 flex items-center space-x-1 animate-pulse">
+                        <AlertCircle className="w-3 h-3 text-red-600" />
+                        <span>QA Failed (Defect in Fix)</span>
+                      </span>
+                    )}
+                    {linkedTask && (linkedTask.testingStatus === 'Pending Testing' || linkedTask.testingStatus === 'In Testing') && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-100 text-purple-800 border border-purple-300 flex items-center space-x-1">
+                        <TestTube2 className="w-3 h-3 text-purple-600" />
+                        <span>In QA Testing</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Submission Timestamp */}
@@ -629,7 +804,6 @@ export const RequirementsView = () => {
                               </div>
                             </div>
 
-                            {/* Download Action */}
                             <a
                               href={att.dataUrl}
                               download={att.name}
@@ -647,55 +821,66 @@ export const RequirementsView = () => {
                 )}
 
                 {/* Project / Sprint / Converted Task Integration Box */}
-                {(req.projectName || req.sprintName || req.convertedTaskId || req.assigneeName) && (
-                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex flex-wrap items-center gap-3">
-                      {req.projectName && (
-                        <div className="flex items-center space-x-1.5 text-slate-700">
-                          <Layers className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-semibold text-[11px]">Project:</span>
-                          <span className="font-bold text-[11px] text-slate-900">{req.projectName}</span>
-                        </div>
-                      )}
+                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Project Assignment: Display assigned project or pending notice */}
+                    {req.projectName ? (
+                      <div className="flex items-center space-x-1.5 text-slate-700">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="font-semibold text-[11px]">Project:</span>
+                        <span className="font-bold text-[11px] text-slate-900">{req.projectName}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1.5 text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded">
+                        <Clock className="w-3 h-3 text-amber-500" />
+                        <span className="font-semibold text-[10px]">Pending Project Assignment (Admin Review)</span>
+                      </div>
+                    )}
 
-                      {req.sprintName && (
-                        <div className="flex items-center space-x-1.5 text-purple-700">
-                          <Zap className="w-3.5 h-3.5 text-purple-500" />
-                          <span className="font-semibold text-[11px]">Sprint:</span>
-                          <span className="font-bold text-[11px] text-purple-900">{req.sprintName}</span>
-                        </div>
-                      )}
+                    {(req.sprintName || linkedTask?.sprintName) && (
+                      <div className="flex items-center space-x-1.5 text-purple-700">
+                        <Zap className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="font-semibold text-[11px]">Sprint:</span>
+                        <span className="font-bold text-[11px] text-purple-900">{linkedTask?.sprintName || req.sprintName}</span>
+                      </div>
+                    )}
+                    {linkedTask?.testerName && (
+                      <div className="flex items-center space-x-1.5 text-purple-700">
+                        <UserCheck className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="font-semibold text-[11px]">QA Tester:</span>
+                        <span className="font-bold text-[11px] text-purple-900">{linkedTask.testerName}</span>
+                      </div>
+                    )}
 
-                      {req.assigneeName && (
-                        <div className="flex items-center space-x-1.5 text-blue-700">
-                          {req.assigneeAvatar ? (
-                            <img src={req.assigneeAvatar} alt={req.assigneeName} className="w-4 h-4 rounded-full object-cover" />
-                          ) : (
-                            <UserCheck className="w-3.5 h-3.5 text-blue-500" />
-                          )}
-                          <span className="font-semibold text-[11px]">Assigned Taskee:</span>
-                          <span className="font-bold text-[11px] text-blue-900">{req.assigneeName}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {req.convertedTaskId && (
-                      <button
-                        onClick={() => {
-                          setSelectedTaskId(req.convertedTaskId);
-                          setIsTaskDrawerOpen(true);
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-mono text-[11px] font-bold flex items-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
-                      >
-                        <CheckSquare className="w-3 h-3 text-emerald-600" />
-                        <span>View Task {req.convertedTaskId}</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
+                    {req.assigneeName && (
+                      <div className="flex items-center space-x-1.5 text-blue-700">
+                        {req.assigneeAvatar ? (
+                          <img src={req.assigneeAvatar} alt={req.assigneeName} className="w-4 h-4 rounded-full object-cover" />
+                        ) : (
+                          <UserCheck className="w-3.5 h-3.5 text-blue-500" />
+                        )}
+                        <span className="font-semibold text-[11px]">Assigned Taskee:</span>
+                        <span className="font-bold text-[11px] text-blue-900">{req.assigneeName}</span>
+                      </div>
                     )}
                   </div>
-                )}
 
-                {/* Footer: Creator & Actions */}
+                  {req.convertedTaskId && (
+                    <button
+                      onClick={() => {
+                        setSelectedTaskId(req.convertedTaskId);
+                        setIsTaskDrawerOpen(true);
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-mono text-[11px] font-bold flex items-center space-x-1.5 shadow-2xs transition-all cursor-pointer"
+                    >
+                      <CheckSquare className="w-3 h-3 text-emerald-600" />
+                      <span>View Task {req.convertedTaskId}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Footer: Creator info and RBAC Action Buttons */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
                   {/* Creator Info */}
                   <div className="flex items-center space-x-2.5">
@@ -707,13 +892,18 @@ export const RequirementsView = () => {
                     <div>
                       <span className="font-bold text-slate-800">{req.createdByName || 'Team Member'}</span>
                       <span className="text-[11px] text-slate-400 ml-1.5 font-medium">({req.createdByRole || 'User'})</span>
+                      {isCreator && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          My Requirement
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Permission-Enforced Action Buttons */}
+                  {/* RBAC Enforced Action Buttons */}
                   <div className="flex items-center space-x-2 shrink-0">
-                    {/* MANAGER / EDITOR / ROOT ADMIN ONLY: Move to Sprint & Assign Task */}
-                    {isPrivileged && (
+                    {/* 1. ADMIN / ROOT / EDITOR ONLY: 'Move to Sprint & Assign Task' button */}
+                    {canAssign && (
                       <button
                         onClick={() => openAssignModal(req)}
                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer ${
@@ -721,34 +911,34 @@ export const RequirementsView = () => {
                             ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         }`}
-                        title={isConverted ? 'Reassign / Update Sprint Assignment' : 'Move to Project Sprint and Assign Task'}
+                        title={isConverted ? 'Reassign Project/Sprint & Status' : 'Move to Project Sprint and Assign Task'}
                       >
                         <Zap className="w-3.5 h-3.5" />
                         <span>{isConverted ? 'Reassign Sprint/Task' : 'Move to Sprint & Assign Task'}</span>
                       </button>
                     )}
 
-                    {/* EDIT: Allowed for Manager/Editor/Root Admin OR the creator of the requirement */}
-                    {hasEditPermission ? (
+                    {/* 2. CREATOR ONLY: Edit button (Only the user who created that requirement can edit it) */}
+                    {isCreator ? (
                       <button
                         onClick={() => openEditModal(req)}
                         className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                        title="Edit Requirement"
+                        title="Edit My Requirement Specifications"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                     ) : (
                       <span
                         className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-medium rounded border border-slate-200 flex items-center space-x-1 cursor-not-allowed"
-                        title="Only the creator or an Administrator/Editor can modify this requirement."
+                        title="Only the creator of this requirement can edit its specifications."
                       >
                         <Eye className="w-3 h-3 text-slate-400" />
                         <span>View Only</span>
                       </span>
                     )}
 
-                    {/* DELETE: Allowed for Manager/Editor/Root Admin OR the creator of the requirement */}
-                    {hasEditPermission && (
+                    {/* 3. CREATOR / ROOT ADMIN: Delete button */}
+                    {canDeleteRequirement(req) && (
                       <button
                         onClick={() => handleDeleteRequirement(req)}
                         className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
@@ -765,7 +955,7 @@ export const RequirementsView = () => {
         )}
       </div>
 
-      {/* 1. SUBMIT NEW REQUIREMENT MODAL */}
+      {/* 1. SUBMIT NEW REQUIREMENT MODAL (Target Project Removed) */}
       {isSubmitModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -776,7 +966,9 @@ export const RequirementsView = () => {
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-900 text-sm">Submit New Requirement</h2>
-                  <p className="text-[11px] text-slate-500">Provide requirement specs for manager backlog review and sprint assignment</p>
+                  <p className="text-[11px] text-slate-500">
+                    Provide requirement specifications for manager review and sprint assignment
+                  </p>
                 </div>
               </div>
               <button
@@ -847,19 +1039,6 @@ export const RequirementsView = () => {
                     <option value="Low">Low</option>
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Target Project</label>
-                <select
-                  value={targetProjectId}
-                  onChange={(e) => setTargetProjectId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 font-medium"
-                >
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
               </div>
 
               {/* Attachments Upload (Multiple Images, PDFs, Specs) */}
@@ -938,14 +1117,14 @@ export const RequirementsView = () => {
                 <button
                   type="button"
                   onClick={() => setIsSubmitModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs cursor-pointer"
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Requirement'}
                 </button>
@@ -955,7 +1134,7 @@ export const RequirementsView = () => {
         </div>
       )}
 
-      {/* 2. EDIT REQUIREMENT MODAL */}
+      {/* 2. EDIT REQUIREMENT MODAL (Creator Only - Target Project and Status Removed) */}
       {isEditModalOpen && selectedReq && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -965,8 +1144,10 @@ export const RequirementsView = () => {
                   <Edit3 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-900 text-sm">Edit Requirement</h2>
-                  <p className="text-[11px] text-slate-500">Update requirement details, priority, or category</p>
+                  <h2 className="font-bold text-slate-900 text-sm">Edit Requirement Specifications</h2>
+                  <p className="text-[11px] text-slate-500">
+                    Only the creator can edit specifications. Project assignment and status are decided by administrator.
+                  </p>
                 </div>
               </div>
               <button
@@ -996,7 +1177,7 @@ export const RequirementsView = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Description</label>
+                <label className="block font-semibold text-slate-700 mb-1">Description & Acceptance Criteria</label>
                 <textarea
                   rows={4}
                   value={description}
@@ -1033,36 +1214,6 @@ export const RequirementsView = () => {
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
                     <option value="Low">Low</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Target Project</label>
-                  <select
-                    value={targetProjectId}
-                    onChange={(e) => setTargetProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 font-medium"
-                  >
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 font-medium"
-                  >
-                    <option value="Submitted">Submitted</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Moved to Sprint">Moved to Sprint</option>
-                    <option value="Converted to Task">Converted to Task</option>
-                    <option value="Completed">Completed</option>
                   </select>
                 </div>
               </div>
@@ -1143,14 +1294,14 @@ export const RequirementsView = () => {
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs cursor-pointer"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -1160,8 +1311,8 @@ export const RequirementsView = () => {
         </div>
       )}
 
-      {/* 3. MOVE TO SPRINT & ASSIGN TASK MODAL (MANAGER / EDITOR / ROOT ADMIN ONLY) */}
-      {isAssignModalOpen && selectedReq && (
+      {/* 3. MOVE TO SPRINT & ASSIGN TASK MODAL (ADMIN / ROOT / EDITOR ONLY) */}
+      {isAssignModalOpen && selectedReq && canAccessMoveToSprint(currentUser) && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1171,7 +1322,9 @@ export const RequirementsView = () => {
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-900 text-sm">Move to Project Sprint & Assign Task</h2>
-                  <p className="text-[11px] text-slate-500">Converts requirement into an active development sprint task</p>
+                  <p className="text-[11px] text-slate-500">
+                    Administrator/Editor workflow: Assign project, target sprint, developer, and decide status.
+                  </p>
                 </div>
               </div>
               <button
@@ -1198,61 +1351,89 @@ export const RequirementsView = () => {
             )}
 
             <form onSubmit={handleConvertAndAssign} className="space-y-3.5 text-xs">
-              {/* Target Project */}
+              {/* 1. Target Project (Triggers dynamic loading of project sprints) */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Target Project *</label>
                 <select
                   value={assignProjectId}
-                  onChange={(e) => {
-                    const newPId = e.target.value;
-                    setAssignProjectId(newPId);
-                    const matchingSprints = sprints.filter(s => s.projectId === newPId || String(s.projectId) === String(newPId));
-                    setAssignSprintId(matchingSprints[0]?.id || '');
-                  }}
+                  onChange={handleAssignProjectChange}
+                  required
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 font-semibold"
                 >
+                  <option value="">-- Select Target Project --</option>
                   {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.code || p.id})</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code || p.id})
+                    </option>
                   ))}
                 </select>
               </div>
 
-              {/* Target Sprint */}
+              {/* 2. Target Sprint (Dynamically filtered by selected project) */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Target Sprint *</label>
+                <label className="block font-semibold text-slate-700 mb-1">Target Sprint</label>
                 <select
                   value={assignSprintId}
                   onChange={(e) => setAssignSprintId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 font-semibold"
                 >
                   <option value="">-- No Sprint (Direct to Backlog) --</option>
-                  {sprints
-                    .filter(s => !assignProjectId || s.projectId === assignProjectId || String(s.projectId) === String(assignProjectId))
-                    .map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.status || 'Active'})
-                      </option>
-                    ))}
+                  {availableSprintsForProject.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.status || 'Active'})
+                    </option>
+                  ))}
                 </select>
+                {assignProjectId && availableSprintsForProject.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1 font-medium flex items-center space-x-1">
+                    <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span>No active sprints found for this project. Task will be placed in Project Backlog.</span>
+                  </p>
+                )}
+                {!assignProjectId && (
+                  <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                    Select a target project above to load available sprints.
+                  </p>
+                )}
               </div>
 
-              {/* Assignee Developer */}
+              {/* 3. Requirement Status (Decided Exclusively by Admin) */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Assign Developer / Engineer *</label>
+                <label className="block font-semibold text-slate-700 mb-1">Requirement Status (Admin Decision) *</label>
+                <select
+                  value={assignStatus}
+                  onChange={(e) => setAssignStatus(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 font-semibold text-slate-800"
+                >
+                  <option value="Moved to Sprint">Moved to Sprint</option>
+                  <option value="Converted to Task">Converted to Task</option>
+                  <option value="Under Review">Under Review</option>
+                  <option value="Submitted">Submitted (Keep in Review)</option>
+                  <option value="Completed">Completed</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Administrators, Root, and Editors have exclusive authority to assign and transition requirement status.
+                </p>
+              </div>
+
+              {/* 4. Assign Developer / Engineer */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Assign Developer / Engineer</label>
                 <select
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 font-semibold"
                 >
-                  <option value="">Unassigned</option>
+                  <option value="">-- Unassigned --</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.name || u.fullname} ({u.role || 'Member'})
+                      {u.name || u.fullname} ({getUserRoleName ? getUserRoleName(u) : (u.role || 'Member')})
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* 5. Story Points & Task Priority */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Story Points</label>
@@ -1285,17 +1466,17 @@ export const RequirementsView = () => {
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-lg font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs flex items-center space-x-1.5"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-xs flex items-center space-x-1.5 cursor-pointer"
                 >
                   <Zap className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Creating Task...' : 'Convert to Task & Assign'}</span>
+                  <span>{isSubmitting ? 'Processing...' : 'Save Assignment & Status'}</span>
                 </button>
               </div>
             </form>
