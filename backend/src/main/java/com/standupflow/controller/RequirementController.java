@@ -22,6 +22,7 @@ public class RequirementController {
     public List<Requirement> getAllRequirements(
             @RequestParam(required = false) String projectId
     ) {
+        // Single query execution: automatically joins tblUser_details via JPA @ManyToOne
         if (projectId != null && !projectId.isBlank()) {
             return requirementRepository.findByProjectId(projectId.trim());
         }
@@ -50,7 +51,7 @@ public class RequirementController {
             req.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
 
             Requirement saved = requirementRepository.save(req);
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(requirementRepository.findById(saved.getId()).orElse(saved));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Failed to create requirement: " + e.getMessage());
@@ -76,7 +77,6 @@ public class RequirementController {
             if (updatedReq.getSprintName() != null) req.setSprintName(updatedReq.getSprintName());
             if (updatedReq.getAssigneeId() != null) req.setAssigneeId(updatedReq.getAssigneeId());
             if (updatedReq.getAssigneeName() != null) req.setAssigneeName(updatedReq.getAssigneeName());
-            if (updatedReq.getAssigneeAvatar() != null) req.setAssigneeAvatar(updatedReq.getAssigneeAvatar());
             if (updatedReq.getStatus() != null) req.setStatus(updatedReq.getStatus());
             if (updatedReq.getConvertedTaskId() != null) req.setConvertedTaskId(updatedReq.getConvertedTaskId());
             if (updatedReq.getAttachmentsJson() != null) req.setAttachmentsJson(updatedReq.getAttachmentsJson());
@@ -84,7 +84,7 @@ public class RequirementController {
             req.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
 
             Requirement saved = requirementRepository.save(req);
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(requirementRepository.findById(saved.getId()).orElse(saved));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Failed to update requirement: " + e.getMessage());

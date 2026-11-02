@@ -138,6 +138,81 @@ export const RequirementsView = () => {
     return false;
   };
 
+  // Resolve creator from tblUser_details (users list & currentUser) so avatar/name changes in Settings update automatically everywhere
+  const resolveCreatorUser = (req) => {
+    if (!req) return null;
+    const reqCreatorId = String(req.createdByUserId || '').trim();
+    const reqCreatorName = String(req.createdByName || '').trim().toLowerCase();
+    const reqCreatorEmail = String(req.createdByEmail || '').trim().toLowerCase();
+
+    // Check currentUser first
+    if (currentUser) {
+      const curId = String(currentUser.id || '').trim();
+      const curName = String(currentUser.name || currentUser.fullname || '').trim().toLowerCase();
+      const curUsername = String(currentUser.username || '').trim().toLowerCase();
+      const curEmail = String(currentUser.email || currentUser.emailid || '').trim().toLowerCase();
+
+      if ((reqCreatorId && curId && reqCreatorId === curId) ||
+          (reqCreatorName && (curName === reqCreatorName || curUsername === reqCreatorName)) ||
+          (reqCreatorEmail && curEmail && curEmail === reqCreatorEmail)) {
+        return currentUser;
+      }
+    }
+
+    // Check in users list (loaded from tblUser_details)
+    return (users || []).find(u => {
+      const uId = String(u.id || '').trim();
+      const uName = String(u.name || u.fullname || '').trim().toLowerCase();
+      const uUsername = String(u.username || '').trim().toLowerCase();
+      const uEmail = String(u.email || u.emailid || '').trim().toLowerCase();
+      return (reqCreatorId && uId && reqCreatorId === uId) ||
+             (reqCreatorName && (uName === reqCreatorName || uUsername === reqCreatorName)) ||
+             (reqCreatorEmail && uEmail && uEmail === reqCreatorEmail);
+    }) || null;
+  };
+
+  const getCreatorAvatar = (req) => {
+    const creator = resolveCreatorUser(req);
+    if (creator?.avatar && creator.avatar.trim()) return creator.avatar;
+    if (req?.createdByAvatar && req.createdByAvatar.trim()) return req.createdByAvatar;
+    return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80';
+  };
+
+  const getCreatorName = (req) => {
+    const creator = resolveCreatorUser(req);
+    return creator?.name || creator?.fullname || req?.createdByName || 'Team Member';
+  };
+
+  const resolveAssigneeUser = (req) => {
+    if (!req) return null;
+    const reqAssigneeId = String(req.assigneeId || '').trim();
+    const reqAssigneeName = String(req.assigneeName || '').trim().toLowerCase();
+
+    if (currentUser) {
+      const curId = String(currentUser.id || '').trim();
+      const curName = String(currentUser.name || currentUser.fullname || '').trim().toLowerCase();
+      const curUsername = String(currentUser.username || '').trim().toLowerCase();
+      if ((reqAssigneeId && curId && reqAssigneeId === curId) ||
+          (reqAssigneeName && (curName === reqAssigneeName || curUsername === reqAssigneeName))) {
+        return currentUser;
+      }
+    }
+
+    return (users || []).find(u => {
+      const uId = String(u.id || '').trim();
+      const uName = String(u.name || u.fullname || '').trim().toLowerCase();
+      const uUsername = String(u.username || '').trim().toLowerCase();
+      return (reqAssigneeId && uId && reqAssigneeId === uId) ||
+             (reqAssigneeName && (uName === reqAssigneeName || uUsername === reqAssigneeName));
+    }) || null;
+  };
+
+  const getAssigneeAvatar = (req) => {
+    const assignee = resolveAssigneeUser(req);
+    if (assignee?.avatar && assignee.avatar.trim()) return assignee.avatar;
+    return req?.assigneeAvatar || '';
+  };
+
   const canEditRequirement = (req) => {
     return isCreatorOfRequirement(req);
   };
@@ -383,6 +458,8 @@ export const RequirementsView = () => {
       const chosenSprint = sprints.find(s => String(s.id) === String(assignSprintId));
       const chosenAssignee = users.find(u => String(u.id) === String(assigneeId));
 
+      const reqAtts = Array.isArray(selectedReq.attachments) ? selectedReq.attachments : [];
+
       if (selectedReq.convertedTaskId) {
         // Requirement was already converted to a task: update requirement assignment & status
         await updateRequirement(selectedReq.id, {
@@ -398,6 +475,15 @@ export const RequirementsView = () => {
 
         if (typeof updateTask === 'function') {
           try {
+            const existingTask = (tasks || []).find(t => String(t.id) === String(selectedReq.convertedTaskId));
+            const existingTaskAtts = existingTask && Array.isArray(existingTask.attachments) ? existingTask.attachments : [];
+            const mergedAtts = [...existingTaskAtts];
+            reqAtts.forEach(ra => {
+              if (!mergedAtts.some(a => (a.id && a.id === ra.id) || (a.name && a.name === ra.name && a.size === ra.size))) {
+                mergedAtts.push(ra);
+              }
+            });
+
             await updateTask(selectedReq.convertedTaskId, {
               projectId: chosenProject?.id,
               projectName: chosenProject?.name,
@@ -407,14 +493,16 @@ export const RequirementsView = () => {
               assigneeName: chosenAssignee?.name || chosenAssignee?.fullname || 'Unassigned',
               assigneeAvatar: chosenAssignee?.avatar || '',
               priority: taskPriority,
-              storyPoints: parseInt(storyPoints) || 0
+              storyPoints: parseInt(storyPoints) || 0,
+              requirementId: selectedReq.id,
+              attachments: mergedAtts
             });
           } catch (taskErr) {
             console.warn('Could not update linked task:', taskErr);
           }
         }
       } else {
-        // Convert to task and link
+        // Convert to task and link, fully transferring all submitted requirement attachments
         await convertRequirementToTask(
           selectedReq.id,
           {
@@ -430,7 +518,9 @@ export const RequirementsView = () => {
             priority: taskPriority,
             storyPoints: parseInt(storyPoints) || 0,
             status: 'Backlog',
-            labels: ['Requirement', selectedReq.category || 'Feature']
+            labels: ['Requirement', selectedReq.category || 'Feature'],
+            requirementId: selectedReq.id,
+            attachments: reqAtts
           },
           assignStatus
         );
@@ -854,8 +944,8 @@ export const RequirementsView = () => {
 
                     {req.assigneeName && (
                       <div className="flex items-center space-x-1.5 text-blue-700">
-                        {req.assigneeAvatar ? (
-                          <img src={req.assigneeAvatar} alt={req.assigneeName} className="w-4 h-4 rounded-full object-cover" />
+                        {getAssigneeAvatar(req) ? (
+                          <img src={getAssigneeAvatar(req)} alt={req.assigneeName} className="w-4 h-4 rounded-full object-cover" />
                         ) : (
                           <UserCheck className="w-3.5 h-3.5 text-blue-500" />
                         )}
@@ -882,15 +972,15 @@ export const RequirementsView = () => {
 
                 {/* Footer: Creator info and RBAC Action Buttons */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
-                  {/* Creator Info */}
+                  {/* Creator Info (always dynamically resolved from tblUser_details) */}
                   <div className="flex items-center space-x-2.5">
                     <img
-                      src={req.createdByAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'}
-                      alt={req.createdByName || 'Creator'}
+                      src={getCreatorAvatar(req)}
+                      alt={getCreatorName(req)}
                       className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200"
                     />
                     <div>
-                      <span className="font-bold text-slate-800">{req.createdByName || 'Team Member'}</span>
+                      <span className="font-bold text-slate-800">{getCreatorName(req)}</span>
                       <span className="text-[11px] text-slate-400 ml-1.5 font-medium">({req.createdByRole || 'User'})</span>
                       {isCreator && (
                         <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">

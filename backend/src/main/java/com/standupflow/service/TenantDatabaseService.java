@@ -344,6 +344,7 @@ public class TenantDatabaseService {
                     "tester_id VARCHAR(255), " +
                     "tester_name VARCHAR(255), " +
                     "has_issue BOOLEAN, " +
+                    "requirement_id VARCHAR(255), " +
                     "attachments_json LONGTEXT, " +
                     "subtasks_json LONGTEXT" +
                     ");");
@@ -427,7 +428,7 @@ public class TenantDatabaseService {
                     "timestamp VARCHAR(50)" +
                     ");");
 
-            // Table: requirements (matches Requirement.java)
+            // Table: requirements (matches Requirement.java — avatars joined from tblUser_details)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS requirements (" +
                     "id VARCHAR(255) PRIMARY KEY, " +
                     "title VARCHAR(255), " +
@@ -440,12 +441,10 @@ public class TenantDatabaseService {
                     "sprint_name VARCHAR(255), " +
                     "assignee_id VARCHAR(255), " +
                     "assignee_name VARCHAR(255), " +
-                    "assignee_avatar LONGTEXT, " +
                     "status VARCHAR(50), " +
                     "converted_task_id VARCHAR(255), " +
                     "created_by_user_id VARCHAR(255), " +
                     "created_by_name VARCHAR(255), " +
-                    "created_by_avatar LONGTEXT, " +
                     "attachments_json LONGTEXT, " +
                     "created_at VARCHAR(100), " +
                     "updated_at VARCHAR(100)" +
@@ -467,6 +466,15 @@ public class TenantDatabaseService {
             if (e.getErrorCode() != 1060 && (e.getMessage() == null || !e.getMessage().toLowerCase().contains("duplicate column"))) {
                 System.err.println("[TenantDatabaseService] Note on column '" + columnName + "' in table '" + tableName + "': " + e.getMessage());
             }
+        }
+    }
+
+    private void dropColumnSafely(Statement stmt, String tableName, String columnName) {
+        try {
+            stmt.executeUpdate("ALTER TABLE `" + tableName + "` DROP COLUMN `" + columnName + "`");
+            System.out.println("[TenantDatabaseService] Successfully dropped redundant column '" + columnName + "' from table '" + tableName + "'.");
+        } catch (java.sql.SQLException e) {
+            // MySQL error code 1091 (ER_CANT_DROP_FIELD_OR_KEY) means column doesn't exist — safe to ignore
         }
     }
 
@@ -502,6 +510,7 @@ public class TenantDatabaseService {
         addColumnSafely(stmt, "tasks", "tester_id", "VARCHAR(255)");
         addColumnSafely(stmt, "tasks", "tester_name", "VARCHAR(255)");
         addColumnSafely(stmt, "tasks", "has_issue", "BOOLEAN");
+        addColumnSafely(stmt, "tasks", "requirement_id", "VARCHAR(255)");
         addColumnSafely(stmt, "tasks", "attachments_json", "LONGTEXT");
         addColumnSafely(stmt, "tasks", "subtasks_json", "LONGTEXT");
 
@@ -547,8 +556,10 @@ public class TenantDatabaseService {
         addColumnSafely(stmt, "chat_channels", "created_by", "VARCHAR(255)");
         addColumnSafely(stmt, "chat_channels", "created_at", "VARCHAR(100)");
 
-        // Requirements
+        // Requirements (redundant avatar columns removed; avatars joined dynamically from tblUser_details)
         addColumnSafely(stmt, "requirements", "attachments_json", "LONGTEXT");
+        dropColumnSafely(stmt, "requirements", "assignee_avatar");
+        dropColumnSafely(stmt, "requirements", "created_by_avatar");
     }
 
     public void alignAllTenantTableSchemas(String databaseName) {

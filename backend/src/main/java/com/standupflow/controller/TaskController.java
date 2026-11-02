@@ -221,6 +221,7 @@ public class TaskController {
                 if (taskDetails.getReporterName() != null) task.setReporterName(taskDetails.getReporterName());
                 if (taskDetails.getProjectId() != null) task.setProjectId(taskDetails.getProjectId());
                 if (taskDetails.getProjectName() != null) task.setProjectName(taskDetails.getProjectName());
+                if (taskDetails.getRequirementId() != null) task.setRequirementId(taskDetails.getRequirementId());
             }
 
             // Task execution fields (Status, QA testing) are updatable by contributors

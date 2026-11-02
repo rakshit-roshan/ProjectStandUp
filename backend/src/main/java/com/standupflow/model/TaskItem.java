@@ -53,6 +53,8 @@ public class TaskItem {
     private String attachmentsJson;
     @Column(name = "subtasks_json", columnDefinition = "LONGTEXT")
     private String subtasksJson;
+    @Column(name = "requirement_id")
+    private String requirementId;
 
     public TaskItem() {}
 
@@ -152,4 +154,7 @@ public class TaskItem {
 
     public String getSubtasksJson() { return subtasksJson; }
     public void setSubtasksJson(String subtasksJson) { this.subtasksJson = subtasksJson; }
+
+    public String getRequirementId() { return requirementId; }
+    public void setRequirementId(String requirementId) { this.requirementId = requirementId; }
 }

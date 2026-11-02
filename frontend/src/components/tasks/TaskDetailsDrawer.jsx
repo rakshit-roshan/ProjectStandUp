@@ -59,7 +59,8 @@ export const TaskDetailsDrawer = () => {
     canSendTaskToTesting,
     issues = [],
     setSelectedIssueId,
-    setIsIssueDrawerOpen
+    setIsIssueDrawerOpen,
+    requirements = []
   } = useApp();
 
   // Local editable draft state to ensure zero input lag
@@ -108,14 +109,41 @@ export const TaskDetailsDrawer = () => {
       setStoryPoints(selectedTask.storyPoints ?? 3);
       setDueDate(selectedTask.dueDate || '');
       setSprintId(selectedTask.sprintId || '');
-      setAttachments(Array.isArray(selectedTask.attachments) ? selectedTask.attachments : []);
+
+      // Load task attachments and also dynamically include any attachments from the linked requirement
+      const taskAtts = Array.isArray(selectedTask.attachments) ? [...selectedTask.attachments] : [];
+      const linkedReq = (requirements || []).find(r => 
+        (r.convertedTaskId && String(r.convertedTaskId) === String(selectedTask.id)) ||
+        (selectedTask.requirementId && String(r.id) === String(selectedTask.requirementId)) ||
+        (selectedTask.title && selectedTask.title.includes(r.id))
+      );
+      let reqAtts = [];
+      if (linkedReq) {
+        if (Array.isArray(linkedReq.attachments)) {
+          reqAtts = linkedReq.attachments;
+        } else if (linkedReq.attachmentsJson) {
+          try { reqAtts = JSON.parse(linkedReq.attachmentsJson); } catch (e) {}
+        }
+      }
+
+      reqAtts.forEach(ra => {
+        if (!taskAtts.some(a => (a.id && a.id === ra.id) || (a.name && a.name === ra.name && a.size === ra.size))) {
+          taskAtts.push({
+            ...ra,
+            fromRequirement: true,
+            requirementId: linkedReq.id
+          });
+        }
+      });
+
+      setAttachments(taskAtts);
       setSubtasks(Array.isArray(selectedTask.subtasks) ? selectedTask.subtasks : []);
       setSaveSuccess(false);
       setErrorMessage(null);
       setIsAssigneeDropdownOpen(false);
       setAssigneeSearchQuery('');
     }
-  }, [isTaskDrawerOpen, selectedTask?.id]);
+  }, [isTaskDrawerOpen, selectedTask?.id, requirements]);
 
   // Auto-save title on blur
   const handleTitleBlur = async () => {
@@ -1121,6 +1149,11 @@ export const TaskDetailsDrawer = () => {
                         <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-mono mt-0.5">
                           <span>{formatFileSize(att.size)}</span>
                           {att.uploadedAt && <span>• {att.uploadedAt}</span>}
+                          {att.fromRequirement && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              Requirement Doc
+                            </span>
+                          )}
                         </div>
                       </div>
 

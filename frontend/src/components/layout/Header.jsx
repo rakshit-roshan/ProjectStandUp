@@ -325,7 +325,7 @@ export const Header = () => {
           >
             <Bell className={`w-4 h-4 transition-transform duration-200 ${isNotifOpen ? 'rotate-12 scale-105' : ''}`} />
             {unreadNotifs.length > 0 ? (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white shadow-xs animate-pulse">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold text-[9px] flex items-center justify-center ring-2 ring-white shadow-xs">
                 {unreadNotifs.length}
               </span>
             ) : (

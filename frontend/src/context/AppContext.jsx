@@ -769,6 +769,34 @@ export const AppProvider = ({ children }) => {
     if (!currentUser) return { success: false, message: 'No user active' };
     const updatedUser = { ...currentUser, ...profileData };
 
+    const syncRequirementsAvatars = (newAvatar, newName) => {
+      if (!newAvatar && !newName) return;
+      setRequirements(prev => prev.map(r => {
+        const isCreator = (r.createdByUserId && String(r.createdByUserId) === String(currentUser.id)) ||
+          (r.createdByName && (
+            r.createdByName === currentUser.name ||
+            r.createdByName === currentUser.fullname ||
+            r.createdByName === currentUser.username
+          ));
+        const isAssignee = (r.assigneeId && String(r.assigneeId) === String(currentUser.id)) ||
+          (r.assigneeName && (
+            r.assigneeName === currentUser.name ||
+            r.assigneeName === currentUser.fullname ||
+            r.assigneeName === currentUser.username
+          ));
+        if (isCreator || isAssignee) {
+          return {
+            ...r,
+            ...(isCreator && newAvatar ? { createdByAvatar: newAvatar } : {}),
+            ...(isCreator && newName ? { createdByName: newName } : {}),
+            ...(isAssignee && newAvatar ? { assigneeAvatar: newAvatar } : {}),
+            ...(isAssignee && newName ? { assigneeName: newName } : {})
+          };
+        }
+        return r;
+      }));
+    };
+
     try {
       const res = await fetch(`${API_BASE_URL}/users/${currentUser.id}`, {
         method: 'PUT',
@@ -791,6 +819,7 @@ export const AppProvider = ({ children }) => {
         };
         setCurrentUser(merged);
         setUsers(prev => prev.map(u => u.id === merged.id ? merged : u));
+        syncRequirementsAvatars(profileData.avatar || merged.avatar, profileData.name || profileData.fullname || merged.name);
         return { success: true, user: merged };
       }
     } catch (e) {
@@ -798,6 +827,7 @@ export const AppProvider = ({ children }) => {
     }
     setCurrentUser(updatedUser);
     setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
+    syncRequirementsAvatars(profileData.avatar || updatedUser.avatar, profileData.name || profileData.fullname || updatedUser.name);
     return { success: true, user: updatedUser };
   };
 
@@ -1140,6 +1170,7 @@ export const AppProvider = ({ children }) => {
       testerName: newTaskData.testerName || '',
       testerEmail: newTaskData.testerEmail || '',
       hasIssue: false,
+      requirementId: newTaskData.requirementId || '',
       attachments: Array.isArray(newTaskData.attachments) ? newTaskData.attachments : [],
       attachmentsJson: JSON.stringify(Array.isArray(newTaskData.attachments) ? newTaskData.attachments : []),
       subtasks: Array.isArray(newTaskData.subtasks) ? newTaskData.subtasks : [],
@@ -1169,7 +1200,7 @@ export const AppProvider = ({ children }) => {
     } else if (Array.isArray(savedTask.subtasks)) {
       subs = savedTask.subtasks;
     }
-    const finalized = { ...savedTask, attachments: atts, subtasks: subs };
+    const finalized = { ...task, ...savedTask, attachments: atts, subtasks: subs, requirementId: newTaskData.requirementId || savedTask.requirementId || '' };
 
     setTasks(prev => [finalized, ...prev]);
     setSelectedTaskId(finalized.id);
@@ -1872,8 +1903,27 @@ export const AppProvider = ({ children }) => {
   };
 
   const convertRequirementToTask = async (reqId, taskPayload, customStatus = 'Moved to Sprint') => {
+    // Preserve and transfer all attachments from the requirement to the converted task
+    const targetReq = (requirements || []).find(r => String(r.id) === String(reqId));
+    let reqAttachments = [];
+    if (targetReq) {
+      if (Array.isArray(targetReq.attachments)) {
+        reqAttachments = targetReq.attachments;
+      } else if (targetReq.attachmentsJson) {
+        try { reqAttachments = JSON.parse(targetReq.attachmentsJson); } catch (e) {}
+      }
+    }
+    const payloadAttachments = Array.isArray(taskPayload.attachments) ? taskPayload.attachments : [];
+    const mergedAttachments = [...payloadAttachments];
+    reqAttachments.forEach(ra => {
+      if (!mergedAttachments.some(a => (a.id && a.id === ra.id) || (a.name && a.name === ra.name && a.size === ra.size))) {
+        mergedAttachments.push(ra);
+      }
+    });
+
     const createdTask = await createTask({
       ...taskPayload,
+      attachments: mergedAttachments,
       requirementId: reqId
     });
     await updateRequirement(reqId, {

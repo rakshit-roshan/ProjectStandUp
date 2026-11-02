@@ -54,8 +54,8 @@ export const KanbanView = () => {
   const columns = [
     { id: 'Backlog', label: 'Backlog', color: 'border-slate-300 text-slate-700 bg-slate-100' },
     { id: 'In Progress', label: 'In Progress', color: 'border-blue-400 text-blue-700 bg-blue-50' },
-    { id: 'In Review', label: 'In Review', color: 'border-amber-400 text-amber-700 bg-amber-50' },
-    { id: 'Completed', label: 'Completed', color: 'border-emerald-400 text-emerald-700 bg-emerald-50' }
+    { id: 'Completed', label: 'Completed', color: 'border-emerald-400 text-emerald-700 bg-emerald-50' },
+    { id: 'In Review', label: 'In Review', color: 'border-amber-400 text-amber-700 bg-amber-50' }
   ];
 
   const filteredTasks = !currentProject ? [] : tasks.filter(task => {

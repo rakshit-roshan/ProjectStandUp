@@ -1,6 +1,9 @@
 package com.standupflow.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 
 @Entity
 @Table(name = "requirements")
@@ -35,8 +38,12 @@ public class Requirement {
     @Column(name = "assignee_name")
     private String assigneeName;
 
-    @Column(name = "assignee_avatar", columnDefinition = "LONGTEXT")
-    private String assigneeAvatar;
+    // Join with tblUser_details on assignee_id in a single SQL query
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "assignee_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
+    @JsonIgnore
+    private User assigneeUser;
 
     private String status; // Submitted, Under Review, Moved to Sprint, Converted to Task, Completed
 
@@ -49,8 +56,12 @@ public class Requirement {
     @Column(name = "created_by_name")
     private String createdByName;
 
-    @Column(name = "created_by_avatar", columnDefinition = "LONGTEXT")
-    private String createdByAvatar;
+    // Join with tblUser_details on created_by_user_id in a single SQL query
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "created_by_user_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @NotFound(action = NotFoundAction.IGNORE)
+    @JsonIgnore
+    private User createdByUser;
 
     @Column(name = "created_at")
     private String createdAt;
@@ -75,12 +86,10 @@ public class Requirement {
         this.sprintName = sprintName;
         this.assigneeId = assigneeId;
         this.assigneeName = assigneeName;
-        this.assigneeAvatar = assigneeAvatar;
         this.status = status;
         this.convertedTaskId = convertedTaskId;
         this.createdByUserId = createdByUserId;
         this.createdByName = createdByName;
-        this.createdByAvatar = createdByAvatar;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -166,6 +175,9 @@ public class Requirement {
     }
 
     public String getAssigneeName() {
+        if (assigneeUser != null && assigneeUser.getName() != null && !assigneeUser.getName().isBlank()) {
+            return assigneeUser.getName();
+        }
         return assigneeName;
     }
 
@@ -173,12 +185,24 @@ public class Requirement {
         this.assigneeName = assigneeName;
     }
 
+    @Transient
     public String getAssigneeAvatar() {
-        return assigneeAvatar;
+        if (assigneeUser != null && assigneeUser.getAvatar() != null && !assigneeUser.getAvatar().isBlank()) {
+            return assigneeUser.getAvatar();
+        }
+        return null;
     }
 
     public void setAssigneeAvatar(String assigneeAvatar) {
-        this.assigneeAvatar = assigneeAvatar;
+        // No-op transient setter: avatar is stored exclusively in tblUser_details
+    }
+
+    public User getAssigneeUser() {
+        return assigneeUser;
+    }
+
+    public void setAssigneeUser(User assigneeUser) {
+        this.assigneeUser = assigneeUser;
     }
 
     public String getStatus() {
@@ -206,6 +230,9 @@ public class Requirement {
     }
 
     public String getCreatedByName() {
+        if (createdByUser != null && createdByUser.getName() != null && !createdByUser.getName().isBlank()) {
+            return createdByUser.getName();
+        }
         return createdByName;
     }
 
@@ -213,12 +240,24 @@ public class Requirement {
         this.createdByName = createdByName;
     }
 
+    @Transient
     public String getCreatedByAvatar() {
-        return createdByAvatar;
+        if (createdByUser != null && createdByUser.getAvatar() != null && !createdByUser.getAvatar().isBlank()) {
+            return createdByUser.getAvatar();
+        }
+        return null;
     }
 
     public void setCreatedByAvatar(String createdByAvatar) {
-        this.createdByAvatar = createdByAvatar;
+        // No-op transient setter: avatar is stored exclusively in tblUser_details
+    }
+
+    public User getCreatedByUser() {
+        return createdByUser;
+    }
+
+    public void setCreatedByUser(User createdByUser) {
+        this.createdByUser = createdByUser;
     }
 
     public String getCreatedAt() {
