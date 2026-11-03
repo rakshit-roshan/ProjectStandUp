@@ -14,7 +14,9 @@ import {
   Upload,
   UserCheck,
   ChevronRight,
-  Filter
+  Filter,
+  ListFilter,
+  ClipboardList
 } from 'lucide-react';
 
 export const TesterDashboard = () => {
@@ -32,6 +34,7 @@ export const TesterDashboard = () => {
     navigateTo,
     setIsTaskDrawerOpen,
     setSelectedTaskId,
+    setSelectedIssueId,
     currentProject,
     projects = [],
     canUserManageProjects,
@@ -42,6 +45,8 @@ export const TesterDashboard = () => {
   const isSubUserUnassigned = !canManageProjects && (!projects || projects.length === 0);
 
   const [testingFilter, setTestingFilter] = useState('ALL'); // ALL | Pending Testing | In Testing | Passed | Failed
+  const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'mybugs'
+  const [bugStateFilter, setBugStateFilter] = useState('ALL'); // ALL | Open | In Progress | Done
 
   const isAdminOrManager = (isUserAdmin && isUserAdmin()) || 
     currentRole === 'ADMIN' || 
@@ -95,6 +100,20 @@ export const TesterDashboard = () => {
   const passedTesting = testingTasks.filter(t => t.testingStatus === 'Passed');
   const failedTesting = testingTasks.filter(t => t.testingStatus === 'Failed');
   const bugsReportedCount = projectIssues.length;
+
+  // My bugs: issues reported by the current logged-in user
+  const myBugs = projectIssues.filter(issue => {
+    const myId = currentUser?.id ? String(currentUser.id) : '';
+    const myName = currentUser?.name ? currentUser.name.toLowerCase() : '';
+    return (
+      (myId && String(issue.reporterId) === myId) ||
+      (myName && issue.reporterName && issue.reporterName.toLowerCase() === myName)
+    );
+  });
+
+  const filteredMyBugs = bugStateFilter === 'ALL'
+    ? myBugs
+    : myBugs.filter(b => b.state && b.state.toLowerCase() === bugStateFilter.toLowerCase());
 
   const filteredTasks = testingFilter === 'ALL'
     ? testingTasks
@@ -176,12 +195,51 @@ export const TesterDashboard = () => {
           <div className="text-2xl font-bold text-red-600 mt-1 tabular-nums">{failedTesting.length}</div>
         </div>
         <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
-          <div className="text-xs font-medium text-slate-500">Bugs Reported</div>
-          <div className="text-2xl font-bold text-fuchsia-600 mt-1 tabular-nums">{bugsReportedCount}</div>
+          <div className="text-xs font-medium text-slate-500">My Bug Reports</div>
+          <div className="text-2xl font-bold text-fuchsia-600 mt-1 tabular-nums">{myBugs.length}</div>
         </div>
       </div>
 
-      {/* Main Testing Tasks Table Workspace */}
+      {/* Tab Bar */}
+      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs w-fit">
+        <button
+          onClick={() => setActiveTab('queue')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            activeTab === 'queue'
+              ? 'bg-fuchsia-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <ClipboardList className="w-3.5 h-3.5" />
+          Testing Queue
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+            activeTab === 'queue' ? 'bg-white/20 text-white' : 'bg-fuchsia-100 text-fuchsia-700'
+          }`}>
+            {testingTasks.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('mybugs')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            activeTab === 'mybugs'
+              ? 'bg-red-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Bug className="w-3.5 h-3.5" />
+          My Bug Reports
+          {myBugs.length > 0 && (
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'mybugs' ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'
+            }`}>
+              {myBugs.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* TAB 1 — Testing Work Items Queue */}
+      {activeTab === 'queue' && (
       <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden space-y-3">
         {/* Table Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -243,7 +301,7 @@ export const TesterDashboard = () => {
                 <th className="p-3">Task ID</th>
                 <th className="p-3">Task Title</th>
                 <th className="p-3">Developer</th>
-                <th className="p-3">Project & Sprint</th>
+                <th className="p-3">Project &amp; Sprint</th>
                 <th className="p-3">Dev Status</th>
                 <th className="p-3">Testing Status</th>
                 <th className="p-3">Assigned Tester</th>
@@ -351,7 +409,7 @@ export const TesterDashboard = () => {
                       }}
                       className="px-2 py-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold rounded text-[10px] transition-colors cursor-pointer"
                     >
-                      Fail & Report
+                      Fail &amp; Report
                     </button>
                   </td>
                 </tr>
@@ -360,6 +418,154 @@ export const TesterDashboard = () => {
           </table>
         </div>
       </div>
+      )}
+
+      {/* TAB 2 — My Bug Reports */}
+      {activeTab === 'mybugs' && (
+      <div className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+        {/* Header Bar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <Bug className="w-4 h-4 text-red-500" />
+            <h2 className="text-sm font-bold text-slate-900">My Bug Reports</h2>
+            <span className="text-xs font-mono text-slate-500">({filteredMyBugs.length} bugs)</span>
+          </div>
+
+          {/* State filter */}
+          <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-md border border-slate-200 text-xs">
+            <ListFilter className="w-3.5 h-3.5 text-slate-400 ml-1" />
+            {['ALL', 'Open', 'In Progress', 'Done'].map(s => (
+              <button
+                key={s}
+                onClick={() => setBugStateFilter(s)}
+                className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                  bugStateFilter === s
+                    ? `bg-white font-semibold shadow-2xs ${
+                        s === 'Done' ? 'text-emerald-700' :
+                        s === 'In Progress' ? 'text-blue-700' :
+                        s === 'Open' ? 'text-red-700' : 'text-slate-900'
+                      }`
+                    : 'text-slate-600'
+                }`}
+              >
+                {s === 'ALL' ? 'All' : s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Bugs Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200">
+              <tr>
+                <th className="p-3">Bug ID</th>
+                <th className="p-3">Title</th>
+                <th className="p-3">Severity</th>
+                <th className="p-3">Priority</th>
+                <th className="p-3">State</th>
+                <th className="p-3">Module</th>
+                <th className="p-3">Linked Task</th>
+                <th className="p-3">Assigned To</th>
+                <th className="p-3">Due Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredMyBugs.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="p-10 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Bug className="w-8 h-8 text-slate-300" />
+                      <div className="font-semibold text-slate-600">
+                        {bugStateFilter === 'ALL' ? "You haven't raised any bug reports yet" : `No bugs with state "${bugStateFilter}"`}
+                      </div>
+                      <p className="text-[11px] text-slate-400 max-w-sm">
+                        Use the "Fail &amp; Report" button on a testing task or "Report New Bug" to raise a defect.
+                      </p>
+                      <button
+                        onClick={() => setIsReportBugModalOpen(true)}
+                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
+                      >
+                        <Bug className="w-3.5 h-3.5" />
+                        Report New Bug
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredMyBugs.map(bug => (
+                  <tr
+                    key={bug.id}
+                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => {
+                      if (typeof setSelectedIssueId === 'function') setSelectedIssueId(bug.id);
+                      if (typeof navigateTo === 'function') navigateTo('issue_registry');
+                    }}
+                  >
+                    <td className="p-3 font-mono font-bold text-red-600">{bug.id}</td>
+                    <td className="p-3">
+                      <div className="font-semibold text-slate-900 max-w-[240px] truncate">{bug.title}</div>
+                      {bug.description && (
+                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{bug.description}</div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        bug.severity === 'Critical' ? 'bg-red-600 text-white' :
+                        bug.severity === 'High' ? 'bg-red-100 text-red-800' :
+                        bug.severity === 'Medium' ? 'bg-amber-100 text-amber-800' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {bug.severity || '-'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        bug.priority === 'Critical' ? 'bg-red-600 text-white' :
+                        bug.priority === 'High' ? 'bg-amber-100 text-amber-800' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {bug.priority || '-'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        bug.state === 'Done' ? 'bg-emerald-100 text-emerald-800' :
+                        bug.state === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {bug.state || 'Open'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-600">{bug.module || '-'}</td>
+                    <td className="p-3 font-mono text-slate-500">{bug.linkedTaskId || '-'}</td>
+                    <td className="p-3">
+                      {bug.assigneeName ? (
+                        <div className="flex items-center space-x-1.5">
+                          {bug.assigneeAvatar ? (
+                            <img src={bug.assigneeAvatar} alt={bug.assigneeName} className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200" />
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-fuchsia-100 text-fuchsia-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                              {bug.assigneeName.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <span className="font-medium text-slate-700">{bug.assigneeName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">Unassigned</span>
+                      )}
+                    </td>
+                    <td className={`p-3 font-mono text-[11px] font-semibold ${bug.dueDate ? 'text-red-600' : 'text-slate-400'}`}>
+                      {bug.dueDate || '-'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
       </div>
     </div>
   );
